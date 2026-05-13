@@ -364,7 +364,7 @@ void updateBoard(void) {
         unsigned int squarey = (unsigned int)((sprites[i].position[1] + BOARD_SCALE) * (float)SQUARES);
         unsigned int pos = squarey * SQUARES + squarex;
         if (board[pos] != sprites[i].textureIndex) {
-            if (pos == 0 || pos == SQUARES - 1 || pos == ((SQUARES * SQUARES) - SQUARES) - 1 || pos == SQUARES * SQUARES - 1) {
+            if (pos == 0 || pos == SQUARES - 1 || pos == (SQUARES * SQUARES) - SQUARES || pos == SQUARES * SQUARES - 1) {
                 points[board[pos]].releasing = 0;
                 points[board[pos]].update = 1;
                 for (unsigned char i = board[pos]; i < 12; i+= 4) {
