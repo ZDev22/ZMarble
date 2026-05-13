@@ -1,0 +1,84 @@
+/* licensed under GPL v3.0 see https://github.com/ZDev22/ZEngine/blob/main/LICENSE for current license
+
+An example implementation on how to init and use zengine, as well as a few zdeps!
+
+#define FPS_CAP 60.f // set the framerate, dont define for no FPS cap
+*/
+
+#define _DEFAULT_SOURCE
+#define _POSIX_C_SOURCE 199309L
+
+/* ZENGINE */
+#define ZENGINE_IMPLEMENTATION
+#define ZENGINE_DEPS_DEFINED
+#define ZENGINE_DISABLE_VSYNC
+//#define ZENGINE_DISABLE_AUDIO
+#define ZENGINE_MAX_FRAMES_IN_FLIGHT 2
+//#define ZENGINE_DEBUG
+#define ZENGINE_MAX_SPRITES 1000000
+#define ZENGINE_MAX_TEXTURES 100
+#include "zengine.h"
+
+//#define FPS_CAP 180.f
+
+/* games */
+#include "zmarble/zmarble.h"
+
+#include <time.h>
+#include <unistd.h>
+
+unsigned int fps = 0;
+float appTimer = 0.f;
+clock_t fpsTime;
+clock_t fpsLastTime;
+struct timespec ts;
+
+int main() {
+    /* init engine */
+    zwindow = RGFW_createWindow("ZMarble", 0, 0, 1920, 1080, (u64)0);
+    ZEngineInit();
+    initBoard();
+    
+    fpsLastTime = clock();
+    while (1) {
+        /* calculate fps */
+        #ifdef FPS_CAP
+            usleep((int)((1.0 / FPS_CAP) * 1000000.0)); 
+        #endif
+
+        fpsTime = clock();
+        deltaTime = (double)(fpsTime - fpsLastTime) / CLOCKS_PER_SEC;
+        fpsLastTime = fpsTime;
+        appTimer += deltaTime;
+
+
+        if (appTimer > 1.f) {
+            char name[64];
+            snprintf(name, 64, "fps: %d", fps);
+            RGFW_window_setName(zwindow, name);
+            appTimer = 0.f;
+            fps = 0;
+        }
+        fps++;
+
+        /* poll window events */
+        RGFW_event event;
+        while (RGFW_window_checkEvent(zwindow, &event)) {
+            if (event.type == RGFW_windowResized) {
+                framebufferResized = 1;
+                break;
+            }
+            else if (event.type == RGFW_quit) {
+                RGFW_window_close(zwindow);
+                zwindow = NULL;
+                ZEngineDeinit();
+                exit(0);
+            }
+        }
+
+        updateBoard();
+
+        ZEngineRender();
+    }
+}
+
