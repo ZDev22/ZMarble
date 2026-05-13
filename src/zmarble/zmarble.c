@@ -402,9 +402,8 @@ void updateBoard(void) {
 
     /* update misc stuffs */
     if (sprites[MARBLES - (MAX_OBSTICLES - obsticleCount) + 6].scale[0] < .45f) {
-        float change = deltaTime / 1250.f;
-        sprites[MARBLES - (MAX_OBSTICLES - obsticleCount) + 6].scale[0] += change;
-        sprites[MARBLES - (MAX_OBSTICLES - obsticleCount) + 6].position[0] += change / 2.f;
+        sprites[MARBLES - (MAX_OBSTICLES - obsticleCount) + 6].scale[0] += deltaTime / 1250.f;
+        sprites[MARBLES - (MAX_OBSTICLES - obsticleCount) + 6].position[0] = (sprites[MARBLES - (MAX_OBSTICLES - obsticleCount) + 6].scale[0] / 2.f) + .6f;
     }
 }
 
