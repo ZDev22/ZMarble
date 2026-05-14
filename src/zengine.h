@@ -6,6 +6,7 @@
 #define ZENGINE_DISABLE_AUDIO - disables audio, and dosen't include miniaudio.h or init it.
 #define ZENGINE_SPRITE_MAPMODE_MANUAL - manually change the ZEngineSpriteRemap flag whenever you update sprite data
 #define ZENGINE_SPRITE_MATRIXMODE_MANUAL - manually call sprites[0].setRotationMatrix() for every sprite you need
+#define ZENGINE_DEPTHMODE_FIRST - makes it so the first created sprites get layered on top of new ones
 #define ZENGINE_DEFAULT_TEXTURE "bird.png" - change the default texture from "e.png" to whatever you want
 
 #define ZENGINE_DEBUG - adds debug printing for debugging
@@ -17,6 +18,7 @@
 #ifndef ZENGINE_H
 #define ZENGINE_H
 
+#ifdef ZENGINE_IMPLEMENTATION
 /* define a few necissary macros if not already defined */
 #ifndef ZENGINE_MAX_FRAMES_IN_FLIGHT
     #define ZENGINE_MAX_FRAMES_IN_FLIGHT 2
@@ -31,6 +33,11 @@
 #if ZENGINE_MAX_SPRITES > 4096 && defined(__APPLE__)
     #undef ZENGINE_MAX_SPRITES
     #define ZENGINE_MAX_SPRITES 4096
+#endif
+
+#if ZENGINE_MAX_TEXTURES < 25
+    #undef ZENGINE_MAX_TEXTURES
+    #define ZENGINE_MAX_TEXTURES 25
 #endif
 
 #define SIZEOF_SPRITE_DATA 48 /* the bytes of the Sprite struct sent to the gpu, stays constant */
@@ -51,6 +58,8 @@
 #ifndef ZENGINE_DEFAULT_TEXTURE
     #define ZENGINE_DEFAULT_TEXTURE "e.png"
 #endif
+
+#endif // ZENGINE_IMPLEMENTATION
 
 /* dependencies */
 #if defined(ZENGINE_IMPLEMENTATION) && !defined(ZENGINE_DEPS_DEFINED)
@@ -258,7 +267,6 @@ void ZEngineDeinit();
 /* sprite funcs */
 void createSprite(Model* model, unsigned int textureIndex, float positionx, float positiony, float scalex, float scaley, float rotation);
 Sprite* createSpritePtr();
-void initSprite(Sprite* sprite);
 void deleteSpritePointer(Sprite* sprite);
 void deleteSprite(unsigned int sprite);
 void setRotationMatrix(Sprite* sprite);
@@ -811,7 +819,6 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
             indices.presentFamilyHasValue = 1;
         }
         if (indices.graphicsFamilyHasValue && indices.presentFamilyHasValue) { break; }
-        i++;
     }
     return indices;
 }
@@ -1074,7 +1081,11 @@ void createSprite(Model* model, unsigned int textureIndex, float posx, float pos
     sprites[spritesSize].scale[1] = scaley;
     sprites[spritesSize].rotation = rotation;
     sprites[spritesSize].textureIndex = textureIndex;
+#ifdef ZENGINE_DEPTHMODE_FIRST
+    sprites[spritesSize].depth = spritesSize / ZENGINE_MAX_SPRITES;
+#else
     sprites[spritesSize].depth = 1.f - ((float)spritesSize / (float)ZENGINE_MAX_SPRITES);
+#endif
     sprites[spritesSize].model = model;
     sprites[spritesSize].data = NULL;
 
@@ -1087,26 +1098,18 @@ Sprite* createSpritePtr() {
     return &sprites[spritesSize - 1];
 }
 
-void initSprite(Sprite* sprite) {
-    sprite->position[0] = 0.f;
-    sprite->position[1] = 0.f;
-    sprite->scale[0] = .1f;
-    sprite->scale[1] = .1f;
-    sprite->rotation = 0.f;
-    sprite->textureIndex = 0;
-    sprite->depth = spritesSize - 1;
-    sprite->model = squareModel;
-    sprite->data = NULL;
-}
-
 void deleteSpritePointer(Sprite* sprite) {
-    deleteSprite(sprite - sprites); 
+    deleteSprite(sprite - sprites);
 }
 
 void deleteSprite(unsigned int sprite) {
     for (unsigned int i = sprite; i < spritesSize - 1; i++) {
         sprites[i] = sprites[i + 1];
+#ifdef ZENGINE_DEPTHMODE_FIRST
+        sprites[i].depth -= 1 / ZENGINE_MAX_SPRITES;
+#else
         sprites[i].depth = 1.f - ((float)i / (float)ZENGINE_MAX_SPRITES);
+#endif
     }
 
     sprites[spritesSize - 1].data = NULL;
@@ -1457,15 +1460,15 @@ void ZEngineInit() {
     camera.position[0] = 0.f; camera.position[1] = 0.f;
     camera.aspect      = (float)windowExtent.width / (float)windowExtent.height;
 
-    float* positions = (float*)malloc(8 * 4);
-    positions[0] = -.5f; positions[1] = -.5f; // Bottom left
-    positions[2] =  .5f; positions[3] = -.5f; // Bottom right
-    positions[4] = -.5f; positions[5] =  .5f; // Top right
-    positions[6] =  .5f; positions[7] =  .5f; // Top left
+    float positions[8] = {
+        -.5f, -.5f, // Bottom left
+        .5f, -.5f, // Bottom right
+        -.5f, .5f, // Top right
+        .5f, .5f, // Top left
+    };
  
     squareModel = (Model*)malloc(sizeof(Model));
-    createModel(squareModel, positions, 8);
-    free(positions);
+    createModel(squareModel, positions, 4);
 
 #ifdef __APPLE__
     createBuffer(spriteDataBuffer, SIZEOF_SPRITE_DATA * ZENGINE_MAX_SPRITES, 1, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -1626,7 +1629,7 @@ void ZEngineDeinit() {
     ZENGINE_PRINT("Freeing window surface\n"); vkDestroySurfaceKHR(instance, surface_, NULL);
     ZENGINE_PRINT("Destroying instance\n"); vkDestroyInstance(instance, NULL);
 #ifndef ZENGINE_DISABLE_AUDIO
-    ZENGINE_PRINT("Deiniting audio"); ma_engine_uninit(&audio);
+    ZENGINE_PRINT("Deiniting audio\n"); ma_engine_uninit(&audio);
 #endif
 }
 
