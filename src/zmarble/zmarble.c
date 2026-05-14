@@ -22,7 +22,6 @@ typedef struct Marble {
     float velocity[2];
     float radius;
     float weight;
-    _Bool colliding;
     _Bool stale;
 } Marble;
 
@@ -41,16 +40,17 @@ typedef struct Points {
 static unsigned char* board;
 static unsigned char* boardImage;
 
-static Marble marbles[MARBLES];
+static Marble marbles[MARBLES + 1];
 static unsigned char marbleSize = 0;
 static unsigned int obsticleCount;
-static Projectile projectiles[0xFFFF];
+static Projectile projectiles[0xFFFFFFFF];
+static unsigned int projectileSize = 0;
 static Points points[4];
-unsigned int projectileSize = 0;
 static float projectileTimer[4];
 static float projectileTime = 0.f;
+static unsigned long long randomstate = 0;
 
-static unsigned long long randomstate;
+
 static void sRandom(void) {
     struct timespec tsm;
     clock_gettime(CLOCK_REALTIME, &tsm);
@@ -76,6 +76,8 @@ static float modFloat(float a, float b) {
 
 
 static void createProjectile(const unsigned char corner, unsigned int health) {
+    if (projectileSize == 0xFFFFFFFF) { return; }
+
     projectiles[projectileSize].velocity[0] = -1.05f * fabs((modFloat(projectileTime, 2.f)) - 1.f) + 1.025f;
     projectiles[projectileSize].velocity[1] = -1.05f * fabs((modFloat((projectileTime + 1.f), 2.f)) - 1.f) + 1.025f;
     switch (corner) {
@@ -138,9 +140,8 @@ static void setSquare(unsigned int index) {
 static void createMarble(float velocityx, float velocityy, float radius, float weight, _Bool stale) {
     marbles[marbleSize].velocity[0] = velocityx;
     marbles[marbleSize].velocity[1] = velocityy;
-    marbles[marbleSize].radius = radius = radius;
+    marbles[marbleSize].radius = radius;
     marbles[marbleSize].weight = weight;
-    marbles[marbleSize].colliding = 0;
     marbles[marbleSize].stale = stale;
     marbleSize++;
 }
@@ -148,7 +149,7 @@ static void createMarble(float velocityx, float velocityy, float radius, float w
 void initBoard(void) {
     /* load board */
     board = (unsigned char*)malloc(SQUARES * SQUARES);
-    boardImage = (unsigned char *)malloc(SQUARES * SQUARES * 3); 
+    boardImage = (unsigned char *)malloc(SQUARES * SQUARES * 3);
 
     for (unsigned int i = 0; i < SQUARES * SQUARES; i++) {
         if (i < (SQUARES * SQUARES) / 2) {
@@ -253,7 +254,6 @@ void updateBoard(void) {
         marbles[i].velocity[1] += GRAVITY * deltaTime;
         sprites[i].position[0] += marbles[i].velocity[0] * deltaTime;
         sprites[i].position[1] += marbles[i].velocity[1] * deltaTime;
-        marbles[i].colliding = 0;
 
         for (unsigned int j = i + 1; j < MARBLES - (MAX_OBSTICLES - obsticleCount); j++) {
             if (zcollide_circleCollision(&sprites[i], marbles[i].radius, &sprites[j], marbles[j].radius)) {
@@ -312,7 +312,7 @@ void updateBoard(void) {
                 sprites[i].position[1] = -1.5f;
                 marbles[i].velocity[0] = (float)Random(-1000, 1000) / 1000.f;
                 marbles[i].velocity[1] = 0.f;
-            } 
+            }
         }
         if (sprites[i].position[0] > 1.2f || sprites[i].position[0] < .62f) {
             marbles[i].velocity[0] = -marbles[i].velocity[0];
@@ -362,12 +362,15 @@ void updateBoard(void) {
 
         unsigned int squarex = (unsigned int)((sprites[i].position[0] + BOARD_SCALE) * (float)SQUARES);
         unsigned int squarey = (unsigned int)((sprites[i].position[1] + BOARD_SCALE) * (float)SQUARES);
+        if (squarex >= SQUARES) { squarex = SQUARES - 1; }
+        if (squarey >= SQUARES) { squarey = SQUARES - 1; }
+
         unsigned int pos = squarey * SQUARES + squarex;
         if (board[pos] != sprites[i].textureIndex) {
             if (pos == 0 || pos == SQUARES - 1 || pos == (SQUARES * SQUARES) - SQUARES || pos == SQUARES * SQUARES - 1) {
                 points[board[pos]].releasing = 0;
                 points[board[pos]].update = 1;
-                for (unsigned char i = board[pos]; i < 12; i+= 4) {
+                for (unsigned char i = board[pos]; i < 12; i += 4) {
                     sprites[i].position[0] = 10.f;
                     marbles[i].stale = 1;
                 }
@@ -406,4 +409,3 @@ void updateBoard(void) {
         sprites[MARBLES - (MAX_OBSTICLES - obsticleCount) + 6].position[0] = (sprites[MARBLES - (MAX_OBSTICLES - obsticleCount) + 6].scale[0] / 2.f) + .6f;
     }
 }
-

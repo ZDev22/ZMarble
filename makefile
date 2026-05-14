@@ -1,7 +1,7 @@
 CC = gcc
-#CFLAGS = -Og -Weverything -Wno-maybe-uninitialized -Wno-declaration-after-statement -Wno-poison-system-directories -Wno-padded -Wno-missing-noreturn -Wno-bad-function-cast -Wno-float-conversion -Wno-double-promotion -Wno-pedantic -std=c99
-CFLAGS = -march=westmere -O3 -Wall -Wextra -Wno-maybe-uninitialized -std=c99 -flto -DZENGINE_DISABLE_AUDIO
-#CFLAGS = -O1 -Wall -Wextra -Wno-maybe-uninitialized -std=c99 -DZENGINE_DISABLE_AUDIO
+#CFLAGS = -Og -Weverything -Wno-uninitialized -Wno-declaration-after-statement -Wno-poison-system-directories -Wno-padded -Wno-missing-noreturn -Wno-bad-function-cast -Wno-float-conversion -Wno-double-promotion -Wno-pedantic -std=c99
+CFLAGS = -march=westmere -O3 -Wall -Wextra -Wno-maybe-uninitialized -std=c99 -flto -DZENGINE_DISABLE_AUDIO -mcmodel=medium
+#CFLAGS = -O1 -Wall -Wextra -Wno-maybe-uninitialized -std=c99 -DZENGINE_DISABLE_AUDIO -mcmodel=medium
 LDFLAGS = -lm -lpthread
 
 BIN := build/main
