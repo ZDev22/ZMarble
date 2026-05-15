@@ -43,8 +43,8 @@ static unsigned char* boardImage;
 static Marble marbles[MARBLES + 1];
 static unsigned char marbleSize = 0;
 static unsigned int obsticleCount;
-static Projectile projectiles[0xFFFFFFFF];
-static unsigned int projectileSize = 0;
+static Projectile projectiles[0xFFFF];
+static unsigned short projectileSize = 0;
 static Points points[4];
 static float projectileTimer[4];
 static float projectileTime = 0.f;
@@ -76,10 +76,10 @@ static float modFloat(float a, float b) {
 
 
 static void createProjectile(const unsigned char corner, unsigned int health) {
-    if (projectileSize == 0xFFFFFFFF) { return; }
+    if (projectileSize == 0xFFFF) { return; }
 
-    projectiles[projectileSize].velocity[0] = -1.05f * fabs((modFloat(projectileTime, 2.f)) - 1.f) + 1.025f;
-    projectiles[projectileSize].velocity[1] = -1.05f * fabs((modFloat((projectileTime + 1.f), 2.f)) - 1.f) + 1.025f;
+    projectiles[projectileSize].velocity[0] = -1.025f * fabs((modFloat(projectileTime, 2.f)) - 1.f) + 1.0125f;
+    projectiles[projectileSize].velocity[1] = -1.025f * fabs((modFloat((projectileTime + 1.f), 2.f)) - 1.f) + 1.0125f;
     switch (corner) {
     case 0: // red
         createSprite(squareModel, 0, -BOARD_SCALE + .01f, -BOARD_SCALE + .01f, .01f, .01f, 0.f);

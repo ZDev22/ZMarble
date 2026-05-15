@@ -35,7 +35,7 @@ struct timespec ts;
 
 int main() {
     /* init engine */
-    zwindow = RGFW_createWindow("ZMarble", 0, 0, 1920, 1080, (u64)0);
+    zwindow = RGFW_createWindow("ZMarble", 0, 0, 720, 480, (u64)0);
     ZEngineInit();
     initBoard();
     
