@@ -38,7 +38,7 @@ int main() {
     zwindow = RGFW_createWindow("ZMarble", 0, 0, 720, 480, (u64)0);
     ZEngineInit();
     initBoard();
-    
+
     fpsLastTime = clock();
     while (1) {
         /* calculate fps */
@@ -53,7 +53,7 @@ int main() {
 
 
         if (appTimer > 1.f) {
-            char name[64];
+            char name[32];
             snprintf(name, 64, "fps: %d", fps);
             RGFW_window_setName(zwindow, name);
             appTimer = 0.f;
