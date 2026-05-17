@@ -82,20 +82,20 @@ static void createProjectile(const unsigned char corner, unsigned int health) {
     projectiles[projectileSize].velocity[1] = -1.025f * fabs((modFloat((projectileTime + 1.f), 2.f)) - 1.f) + 1.0125f;
     switch (corner) {
     case 0: // red
-        createSprite(squareModel, 0, -BOARD_SCALE + .01f, -BOARD_SCALE + .01f, .01f, .01f, 0.f);
+        createSprite(squareModel, 0, -BOARD_SCALE + .005f, -BOARD_SCALE + .005f, .01f, .01f, 0.f);
         break;
     case 1: // green
         projectiles[projectileSize].velocity[0] = -projectiles[projectileSize].velocity[0];
-        createSprite(squareModel, 1, BOARD_SCALE - .01f, -BOARD_SCALE + .01f, .01f, .01f, 0.f);
+        createSprite(squareModel, 1, BOARD_SCALE - .005f, -BOARD_SCALE + .005f, .01f, .01f, 0.f);
         break;
     case 2: // blue
         projectiles[projectileSize].velocity[1] = -projectiles[projectileSize].velocity[1];
-        createSprite(squareModel, 2, -BOARD_SCALE + .01f, BOARD_SCALE - .01f, .01f, .01f, 0.f);
+        createSprite(squareModel, 2, -BOARD_SCALE + .005f, BOARD_SCALE - .005f, .01f, .01f, 0.f);
         break;
     case 3: // yellow
         projectiles[projectileSize].velocity[0] = -projectiles[projectileSize].velocity[0];
         projectiles[projectileSize].velocity[1] = -projectiles[projectileSize].velocity[1];
-        createSprite(squareModel, 3, BOARD_SCALE - .01f, BOARD_SCALE - .01f, .01f, .01f, 0.f);
+        createSprite(squareModel, 3, BOARD_SCALE - .005f, BOARD_SCALE - .005f, .01f, .01f, 0.f);
         break;
     }
 

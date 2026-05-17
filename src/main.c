@@ -14,7 +14,7 @@ An example implementation on how to init and use zengine, as well as a few zdeps
 #define ZENGINE_DISABLE_VSYNC
 //#define ZENGINE_DISABLE_AUDIO
 #define ZENGINE_MAX_FRAMES_IN_FLIGHT 2
-//#define ZENGINE_DEBUG
+#define ZENGINE_DEBUG
 #define ZENGINE_MAX_SPRITES 1000000
 #define ZENGINE_MAX_TEXTURES 100
 #include "zengine.h"
@@ -40,7 +40,7 @@ int main() {
     initBoard();
 
     fpsLastTime = clock();
-    while (1) {
+    while (!RGFW_window_shouldClose(zwindow)) {
         /* calculate fps */
         #ifdef FPS_CAP
             usleep((int)((1.0 / FPS_CAP) * 1000000.0)); 
@@ -50,7 +50,6 @@ int main() {
         deltaTime = (double)(fpsTime - fpsLastTime) / CLOCKS_PER_SEC;
         fpsLastTime = fpsTime;
         appTimer += deltaTime;
-
 
         if (appTimer > 1.f) {
             char name[32];
@@ -68,17 +67,15 @@ int main() {
                 framebufferResized = 1;
                 break;
             }
-            else if (event.type == RGFW_quit) {
-                RGFW_window_close(zwindow);
-                zwindow = NULL;
-                ZEngineDeinit();
-                exit(0);
-            }
         }
 
         updateBoard();
 
         ZEngineRender();
     }
+
+    RGFW_window_close(zwindow);
+    zwindow = NULL;
+    ZEngineDeinit();
 }
 
