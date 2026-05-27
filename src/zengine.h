@@ -1085,7 +1085,7 @@ void createSprite(Model* model, unsigned int textureIndex, float posx, float pos
 #ifdef ZENGINE_DEPTHMODE_FIRST
     sprites[spritesSize].depth = spritesSize / ZENGINE_MAX_SPRITES;
 #else
-    sprites[spritesSize].depth = ((float)spritesSize * 0.00001f);
+    sprites[spritesSize].depth = .999f - ((float)spritesSize * 0.000015f);;
 #endif
     sprites[spritesSize].model = model;
     sprites[spritesSize].data = NULL;
