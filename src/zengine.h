@@ -137,6 +137,7 @@ typedef struct __attribute__((aligned(16))) Sprite {
     float depth;
     unsigned int textureIndex;
     float rotation;
+    float padding;
 
     /* CPU-side only */
     Model* model;
@@ -183,81 +184,11 @@ extern unsigned int spritesSize;
 extern struct Model* squareModel;
 extern ZENGINE_AUDIO;
 extern Camera camera;
+extern _Bool framebufferResized;
+extern RGFW_window* zwindow;
 #ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
     extern _Bool ZEngineSpriteRemap;
 #endif
-
-#ifdef ZENGINE_IMPLEMENTATION
-
-/* kinda just chillin ngl */
-Camera camera;
-ZENGINE_AUDIO;
-
-double deltaTime = 0.0; /* deltaTime, do what you will. Example implementation in main.cpp */
-_Bool ZEngineClose = 0; /* flag to show when the engine is closing */
-#ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
-    _Bool ZEngineSpriteRemap = 1; /* flag to update sprite data buffer with ZENGINE_SPRITE_MAPMODE_MANUAL */
-#endif
-
-/* texture vecs */
-struct Texture* spriteTextures = NULL;
-char* spriteData;
-
-/* window vars */
-_Bool framebufferResized = 0;
-RGFW_window* zwindow = NULL;
-VkExtent2D windowExtent;
-
-/* device vars */
-VkInstance instance;
-VkCommandPool commandPool;
-VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-VkPhysicalDeviceProperties properties;
-VkDevice device_;
-VkQueue presentQueue_;
-VkSurfaceKHR surface_;
-VkQueue graphicsQueue_;
-
-/* renderer vars */
-VkCommandBuffer* commandBuffers = NULL;
-unsigned int currentImageIndex;
-
-/* pipeline vars */
-VkPipeline graphicsPipeline;
-VkPipelineLayout pipelineLayout;
-VkDescriptorSetLayout descriptorSetLayout;
-VkDescriptorPool descriptorPool;
-struct Model* squareModel = NULL;
-
-/* rendersystem vars */
-VkDescriptorSet spriteDataDescriptorSet;
-struct Buffer* spriteDataBuffer = NULL;
-
-/* swapchain vars */
-VkSwapchainKHR swapChain;
-VkSwapchainKHR oldSwapChain;
-VkFormat swapChainImageFormat;
-VkFormat swapChainDepthFormat;
-VkRenderPass renderPass;
-VkFramebuffer* swapChainFramebuffers = NULL;
-VkImage* depthImages = NULL;
-VkDeviceMemory* depthImageMemorys = NULL;
-VkImageView* depthImageViews = NULL;
-VkImage* swapChainImages = NULL;
-VkImageView* swapChainImageViews = NULL;
-VkSemaphore imageAvailableSemaphores[ZENGINE_MAX_FRAMES_IN_FLIGHT];
-VkSemaphore renderFinishedSemaphores[ZENGINE_MAX_FRAMES_IN_FLIGHT];
-VkFence inFlightFences[ZENGINE_MAX_FRAMES_IN_FLIGHT];
-VkFence* imagesInFlight = NULL;
-unsigned int currentFrame;
-unsigned int imageCount;
-unsigned int oldImageCount;
-
-/* sprite vars */
-Sprite* sprites = NULL;
-unsigned int spritesSize = 0;
-
-#endif // ZENGINE_IMPLEMENTATION (variables)
 
 /* ZENGINE FORWARD-DECLARED FUNCTIONS */
 void ZEngineInit();
@@ -266,7 +197,7 @@ void ZEngineDeinit();
 
 /* sprite funcs */
 void createSprite(Model* model, unsigned int textureIndex, float positionx, float positiony, float scalex, float scaley, float rotation);
-Sprite* createSpritePtr();
+Sprite* createSpritePtr(Model* model, unsigned int textureIndex, float posx, float posy, float scalex, float scaley, float rotation);
 void deleteSpritePointer(Sprite* sprite);
 void deleteSprite(unsigned int sprite);
 void setRotationMatrix(Sprite* sprite);
@@ -315,6 +246,76 @@ void transitionImageLayout(Texture* texture, VkImageLayout oldLayout, VkImageLay
 void createBuffer(Buffer* buffer, VkDeviceSize instanceSize, unsigned int instanceCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags);
 
 #ifdef ZENGINE_IMPLEMENTATION
+/* PRIVATE VARS */
+
+/* kinda just chillin ngl */
+Camera camera;
+ZENGINE_AUDIO;
+
+double deltaTime = 0.0; /* deltaTime, do what you will. Example implementation in main.cpp */
+_Bool ZEngineClose = 0; /* flag to show when the engine is closing */
+#ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
+    _Bool ZEngineSpriteRemap = 1; /* flag to update sprite data buffer with ZENGINE_SPRITE_MAPMODE_MANUAL */
+#endif
+
+/* texture vecs */
+struct Texture* spriteTextures = NULL;
+char* spriteData;
+
+/* window vars */
+_Bool framebufferResized = 0;
+RGFW_window* zwindow = NULL;
+VkExtent2D windowExtent;
+
+/* sprite vars */
+Sprite* sprites = NULL;
+unsigned int spritesSize = 0;
+
+/* device vars */
+VkInstance instance;
+VkCommandPool commandPool;
+VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+VkPhysicalDeviceProperties properties;
+VkDevice device_;
+VkQueue presentQueue_;
+VkSurfaceKHR surface_;
+VkQueue graphicsQueue_;
+
+/* renderer vars */
+VkCommandBuffer* commandBuffers = NULL;
+unsigned int currentImageIndex;
+
+/* pipeline vars */
+VkPipeline graphicsPipeline;
+VkPipelineLayout pipelineLayout;
+VkDescriptorSetLayout descriptorSetLayout;
+VkDescriptorPool descriptorPool;
+struct Model* squareModel = NULL;
+
+/* rendersystem vars */
+VkDescriptorSet spriteDataDescriptorSet;
+struct Buffer* spriteDataBuffer = NULL;
+
+/* swapchain vars */
+VkSwapchainKHR swapChain;
+VkSwapchainKHR oldSwapChain;
+VkFormat swapChainImageFormat;
+VkFormat swapChainDepthFormat;
+VkRenderPass renderPass;
+VkFramebuffer* swapChainFramebuffers = NULL;
+VkImage* depthImages = NULL;
+VkDeviceMemory* depthImageMemorys = NULL;
+VkImageView* depthImageViews = NULL;
+VkImage* swapChainImages = NULL;
+VkImageView* swapChainImageViews = NULL;
+VkSemaphore imageAvailableSemaphores[ZENGINE_MAX_FRAMES_IN_FLIGHT];
+VkSemaphore renderFinishedSemaphores[ZENGINE_MAX_FRAMES_IN_FLIGHT];
+VkFence inFlightFences[ZENGINE_MAX_FRAMES_IN_FLIGHT];
+VkFence* imagesInFlight = NULL;
+unsigned int currentFrame;
+unsigned int imageCount;
+unsigned int oldImageCount;
+
 /* SWAP CHAIN FUNCTIONS */
 void createSwapChain() {
     /* create swapchain KHR */
@@ -1084,7 +1085,7 @@ void createSprite(Model* model, unsigned int textureIndex, float posx, float pos
 #ifdef ZENGINE_DEPTHMODE_FIRST
     sprites[spritesSize].depth = spritesSize / ZENGINE_MAX_SPRITES;
 #else
-    sprites[spritesSize].depth = 1.f - ((float)spritesSize / (float)ZENGINE_MAX_SPRITES);
+    sprites[spritesSize].depth = ((float)spritesSize * 0.00001f);
 #endif
     sprites[spritesSize].model = model;
     sprites[spritesSize].data = NULL;
@@ -1092,9 +1093,9 @@ void createSprite(Model* model, unsigned int textureIndex, float posx, float pos
     spritesSize++;
 }
 
-Sprite* createSpritePtr() {
+Sprite* createSpritePtr(Model* model, unsigned int textureIndex, float posx, float posy, float scalex, float scaley, float rotation) {
     if (spritesSize >= ZENGINE_MAX_SPRITES) { return NULL; }
-    createSprite(squareModel, 0, 0.f, 0.f, .1f, .1f, 0);
+    createSprite(model, textureIndex, posx, posy, scalex, scaley, rotation);
     return &sprites[spritesSize - 1];
 }
 
@@ -1108,7 +1109,7 @@ void deleteSprite(unsigned int sprite) {
 #ifdef ZENGINE_DEPTHMODE_FIRST
         sprites[i].depth -= 1 / ZENGINE_MAX_SPRITES;
 #else
-        sprites[i].depth = 1.f - ((float)i / (float)ZENGINE_MAX_SPRITES);
+        sprites[i].depth = ((float)i * 0.00001f);
 #endif
     }
 
@@ -1633,7 +1634,7 @@ void ZEngineDeinit() {
 #endif
 }
 
-#endif // ZENGINE_IMPLEMENTATION
 #undef ZENGINE_IMPLEMENTATION
+#endif // ZENGINE_IMPLEMENTATION
 #endif // ZENGINE_H
 
