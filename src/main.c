@@ -15,8 +15,8 @@ An example implementation on how to init and use zengine, as well as a few zdeps
 //#define ZENGINE_DISABLE_AUDIO
 #define ZENGINE_MAX_FRAMES_IN_FLIGHT 2
 #define ZENGINE_DEBUG
-#define ZENGINE_MAX_SPRITES 1000000
-#define ZENGINE_MAX_TEXTURES 100
+#define ZENGINE_MAX_SPRITES 10000
+#define ZENGINE_MAX_TEXTURES 25
 #include "zengine.h"
 
 //#define FPS_CAP 180.f
@@ -35,6 +35,9 @@ struct timespec ts;
 
 int main() {
     /* init engine */
+    setenv("__GL_YIELD", "USLEEP", 1);
+    setenv("MESA_NO_ERROR", "1", 1);
+
     zwindow = RGFW_createWindow("ZMarble", 0, 0, 720, 480, (u64)0);
     ZEngineInit();
     initBoard();
