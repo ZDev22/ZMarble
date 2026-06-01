@@ -5,7 +5,7 @@ An example implementation on how to init and use zengine, as well as a few zdeps
 #define FPS_CAP 60.f // set the framerate, dont define for no FPS cap
 */
 
-#define _DEFAULT_SOURCE
+#define _GNU_SOURCE
 #define _POSIX_C_SOURCE 199309L
 
 /* ZENGINE */
@@ -29,9 +29,8 @@ An example implementation on how to init and use zengine, as well as a few zdeps
 
 unsigned int fps = 0;
 float appTimer = 0.f;
-clock_t fpsTime;
-clock_t fpsLastTime;
-struct timespec ts;
+struct timespec fpsTime;
+struct timespec fpsLastTime;
 
 int main() {
     /* init engine */
@@ -42,21 +41,22 @@ int main() {
     ZEngineInit();
     initBoard();
 
-    fpsLastTime = clock();
+    clock_gettime(CLOCK_MONOTONIC, &fpsLastTime);
     while (!RGFW_window_shouldClose(zwindow)) {
         /* calculate fps */
         #ifdef FPS_CAP
-            usleep((int)((1.0 / FPS_CAP) * 1000000.0)); 
+            usleep((int)((1.0 / FPS_CAP) * 1000000.0));
         #endif
 
-        fpsTime = clock();
-        deltaTime = (double)(fpsTime - fpsLastTime) / CLOCKS_PER_SEC;
-        fpsLastTime = fpsTime;
+        clock_gettime(CLOCK_MONOTONIC, &fpsTime);
+        deltaTime = (double)(fpsTime.tv_sec - fpsLastTime.tv_sec) + (double)(fpsTime.tv_nsec - fpsLastTime.tv_nsec) / 1000000000.0;
+        fpsLastTime.tv_nsec = fpsTime.tv_nsec;
+        fpsLastTime.tv_sec = fpsTime.tv_sec;
         appTimer += deltaTime;
 
         if (appTimer > 1.f) {
             char name[32];
-            snprintf(name, 64, "fps: %d", fps);
+            snprintf(name, 32, "fps: %d", fps);
             RGFW_window_setName(zwindow, name);
             appTimer = 0.f;
             fps = 0;
@@ -73,7 +73,6 @@ int main() {
         }
 
         updateBoard();
-
         ZEngineRender();
     }
 

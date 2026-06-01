@@ -167,25 +167,25 @@ void initBoard(void) {
 
     /* load marbles & projectiles */
     Texture texture;
-    createTexture(&texture, "red.png");
+    createTexture(&texture, "red.png", 1.f);
     updateTexture(0, &texture);
-    createTexture(&texture, "green.png");
+    createTexture(&texture, "green.png", 1.f);
     updateTexture(1, &texture);
-    createTexture(&texture, "blue.png");
+    createTexture(&texture, "blue.png", 1.f);
     updateTexture(2, &texture);
-    createTexture(&texture, "yellow.png");
+    createTexture(&texture, "yellow.png", 1.f);
     updateTexture(3, &texture);
-    createTexture(&texture, "board.png");
+    createTexture(&texture, "board.png", 1.f);
     updateTexture(4, &texture);
-    createTexture(&texture, "gray.png");
+    createTexture(&texture, "gray.png", 1.f);
     updateTexture(9, &texture);
-    createTexture(&texture, "multiply.png");
+    createTexture(&texture, "multiply.png", 1.f);
     updateTexture(10, &texture);
-    createTexture(&texture, "release.png");
+    createTexture(&texture, "release.png", 1.f);
     updateTexture(11, &texture);
 
     sRandom();
- 
+
     for (unsigned int i = 0; i < MARBLES - MAX_OBSTICLES; i++) { /* spawn normal marbles */
         createSprite(squareModel, i % 4, (float)Random(800, 1200) / 1000.f, (float)Random(-2000, -1100) / 1000.f, .025f, .025f, 0.f);
         createMarble((float)Random(-500, 500) / 1000.f, (float)Random(-1000, 1000) / 1000.f, .0125f, .0125f * 40.f, 0);
@@ -399,7 +399,7 @@ void updateBoard(void) {
         stbi_write_png("assets/images/board.png", SQUARES, SQUARES, 3, boardImage, SQUARES * 3);
 
         Texture texture;
-        createTexture(&texture, "board.png");
+        createTexture(&texture, "board.png", 1.f);
         updateTexture(4, &texture);
     }
 
