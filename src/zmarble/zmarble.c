@@ -1,7 +1,7 @@
 #define _POSIX_C_SOURCE 199309L
 
 #define BOARD_SCALE .5f
-#define SQUARES 256
+#define SQUARES 128
 #define GRAVITY 2.5f
 
 #include "zmarble.h"
@@ -9,7 +9,6 @@
 #include "../zcollide.h"
 #include "../ztext.h"
 #include "../sprites.h"
-#include "../deps/stb_image_write.h"
 
 #include <stdlib.h>
 #include <math.h>
@@ -124,24 +123,28 @@ static void createProjectile(const unsigned char corner, unsigned int health) {
 static void setSquare(unsigned int index) {
     switch(board[index]) {
     case 0: // red
-        boardImage[index * 3] = 255;
-        boardImage[index * 3 + 1] = 0;
-        boardImage[index * 3 + 2] = 0;
+        boardImage[index * 4] = 255;
+        boardImage[index * 4 + 1] = 0;
+        boardImage[index * 4 + 2] = 0;
+        boardImage[index * 4 + 3] = 255;
         return;
     case 1: // green
-        boardImage[index * 3] = 0;
-        boardImage[index * 3 + 1] = 255;
-        boardImage[index * 3 + 2] = 0;
+        boardImage[index * 4] = 0;
+        boardImage[index * 4 + 1] = 255;
+        boardImage[index * 4 + 2] = 0;
+        boardImage[index * 4 + 3] = 255;
         return;
     case 2: // blue
-        boardImage[index * 3] = 0;
-        boardImage[index * 3 + 1] = 0;
-        boardImage[index * 3 + 2] = 255;
+        boardImage[index * 4] = 0;
+        boardImage[index * 4 + 1] = 0;
+        boardImage[index * 4 + 2] = 255;
+        boardImage[index * 4 + 3] = 255;
         return;
     case 3: // yellow
-        boardImage[index * 3] = 255;
-        boardImage[index * 3 + 1] = 255;
-        boardImage[index * 3 + 2] = 0;
+        boardImage[index * 4] = 255;
+        boardImage[index * 4 + 1] = 255;
+        boardImage[index * 4 + 2] = 0;
+        boardImage[index * 4 + 3] = 255;
         return;
     }
 }
@@ -160,7 +163,7 @@ static void createMarble(float positionx, float positiony, float scalex, float s
 void initBoard(void) {
     /* load board */
     board = (unsigned char*)malloc(SQUARES * SQUARES);
-    boardImage = (unsigned char *)malloc(SQUARES * SQUARES * 3);
+    boardImage = (unsigned char *)malloc(SQUARES * SQUARES * 4);
 
     for (unsigned int i = 0; i < SQUARES * SQUARES; i++) {
         if (i < (SQUARES * SQUARES) / 2) {
@@ -174,14 +177,13 @@ void initBoard(void) {
         setSquare(i);
     }
 
-    stbi_write_png("assets/img/board.png", SQUARES, SQUARES, 3, boardImage, SQUARES * 3);
+    createTextureExt(boardImage, 4, SQUARES, SQUARES, SQUARES * SQUARES * 4, VK_FORMAT_R8G8B8A8_SRGB);
 
     /* load marbles & projectiles */
     createTexture("assets/img/red.png", 1.f, 0);
     createTexture("assets/img/green.png", 1.f, 1);
     createTexture("assets/img/blue.png", 1.f, 2);
     createTexture("assets/img/yellow.png", 1.f, 3);
-    createTexture("assets/img/board.png", 1.f, 4);
     createTexture("assets/img/gray.png", 1.f, 9);
     createTexture("assets/img/multiply.png", 1.f, 10);
     createTexture("assets/img/release.png", 1.f, 11);
@@ -380,8 +382,7 @@ void updateBoard(void) {
 
     boardUpdateTimer += deltaTime;
     if (redrawBoard && boardUpdateTimer > .032f) {
-        stbi_write_png("assets/img/board.png", SQUARES, SQUARES, 3, boardImage, SQUARES * 3);
-        createTexture("assets/img/board.png", 1.f, 4);
+        createTextureExt(boardImage, 4, SQUARES, SQUARES, SQUARES * SQUARES * 4, VK_FORMAT_R8G8B8A8_SRGB);
     }
 
     /* update multiply scale */

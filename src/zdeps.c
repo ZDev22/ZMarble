@@ -20,12 +20,7 @@ To use along-side zengine.h, use #define ZENGINE_DEPS_DEFINED */
 #define STBI_NO_TGA
 #define STBI_NO_PIC
 #define STBI_NO_PNM
-
-/* STB_IMAGE_WRITE */
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STBIW_ASSERT(x)
-#define _CRT_SECURE_NO_WARNINGS
-#define STBTT_MAX_OVERSAMPLE 0
+#define STBI_NO_LINEAR
 
 /* STB_TRUETYPE */
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -34,14 +29,13 @@ To use along-side zengine.h, use #define ZENGINE_DEPS_DEFINED */
 /* DEPENDENCIES */
 #include "deps/RGFW.h"
 #include "deps/stb_image.h"
-#include "deps/stb_image_write.h"
 #include "deps/stb_truetype.h"
 
 #undef RGFW_IMPLEMENTATION
 #undef ZCOLLIDE_IMPLEMENTATION
+#undef ZMATH_IMPLEMENTATION
 #undef ZTEXT_IMPLEMENTATION
 #undef STB_IMAGE_IMPLEMENTATION
-#undef STB_IMAGE_WRITE_IMPLEMENTATION
 #undef STB_TRUETYPE_IMPLEMENTATION
 
 /* ZDEPS */

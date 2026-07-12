@@ -19,8 +19,6 @@ An example implementation on how to init and use zengine, as well as a few zdeps
 #include "zengine.h"
 #include "ztext.h"
 
-#include "deps/stb_image_write.h"
-
 #define SPRITES_IMPLEMENTATION
 #include "sprites.h"
 
@@ -53,8 +51,6 @@ int main(void) {
     /* set runtime vars  */
     clock_gettime(CLOCK_MONOTONIC, &fpsLastTime);
     srand(fpsLastTime.tv_nsec);
-
-    stbi_write_png_compression_level = 0;
 
     while (!RGFW_window_shouldClose(zwindow)) {
         /* calculate fps */
