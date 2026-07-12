@@ -5,63 +5,79 @@ An example implementation on how to init and use zengine, as well as a few zdeps
 #define FPS_CAP 60.f // set the framerate, dont define for no FPS cap
 */
 
-#define _GNU_SOURCE
-#define _POSIX_C_SOURCE 199309L
+#define _DEFAULT_SOURCE
+#define _POSIX_C_SOURCE 200809L
+
+/* main.c */
+#define FPS_CAP 120.f
+#define TRACK_FPS
 
 /* ZENGINE */
 #define ZENGINE_IMPLEMENTATION
 #define ZENGINE_DEPS_DEFINED
-#define ZENGINE_DISABLE_VSYNC
-//#define ZENGINE_DISABLE_AUDIO
-#define ZENGINE_MAX_FRAMES_IN_FLIGHT 2
-#define ZENGINE_DEBUG
-#define ZENGINE_MAX_SPRITES 10000
-#define ZENGINE_MAX_TEXTURES 25
+//#define ZENGINE_DISABLE_VSYNC
 #include "zengine.h"
+#include "ztext.h"
 
-//#define FPS_CAP 180.f
+#include "deps/stb_image_write.h"
 
-/* games */
+#define SPRITES_IMPLEMENTATION
+#include "sprites.h"
+
+/* ZFleet */
 #include "zmarble/zmarble.h"
 
 #include <time.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <stdio.h>
 
 unsigned int fps = 0;
 float appTimer = 0.f;
 struct timespec fpsTime;
 struct timespec fpsLastTime;
 
-int main() {
-    /* init engine */
+int main(void) {
+    /* set gpu vars */
     setenv("__GL_YIELD", "USLEEP", 1);
     setenv("MESA_NO_ERROR", "1", 1);
 
-    zwindow = RGFW_createWindow("ZMarble", 0, 0, 720, 480, (u64)0);
+    /* init window */
+    zwindow = RGFW_createWindow("...", 0, 0, 720, 480, 0);
+
+    /* init zengine */
     ZEngineInit();
     initBoard();
+    RGFW_window_maximize(zwindow);
 
+    /* set runtime vars  */
     clock_gettime(CLOCK_MONOTONIC, &fpsLastTime);
+    srand(fpsLastTime.tv_nsec);
+
+    stbi_write_png_compression_level = 0;
+
     while (!RGFW_window_shouldClose(zwindow)) {
         /* calculate fps */
-        #ifdef FPS_CAP
-            usleep((int)((1.0 / FPS_CAP) * 1000000.0));
-        #endif
-
         clock_gettime(CLOCK_MONOTONIC, &fpsTime);
         deltaTime = (double)(fpsTime.tv_sec - fpsLastTime.tv_sec) + (double)(fpsTime.tv_nsec - fpsLastTime.tv_nsec) / 1000000000.0;
         fpsLastTime.tv_nsec = fpsTime.tv_nsec;
         fpsLastTime.tv_sec = fpsTime.tv_sec;
         appTimer += deltaTime;
 
+#ifdef FPS_CAP
+        usleep((int)(((1.f / FPS_CAP) * 1000000.f) - (deltaTime * 100000.f)));
+#endif
+
+#ifdef TRACK_FPS
         if (appTimer > 1.f) {
-            char name[32];
-            snprintf(name, 32, "fps: %d", fps);
+            char name[6];
+            sprintf(name, "%hu", fps);
             RGFW_window_setName(zwindow, name);
             appTimer = 0.f;
             fps = 0;
         }
         fps++;
+#endif
 
         /* poll window events */
         RGFW_event event;
@@ -76,8 +92,10 @@ int main() {
         ZEngineRender();
     }
 
+    /* free window */
     RGFW_window_close(zwindow);
     zwindow = NULL;
+
+    /* deinit zengine */
     ZEngineDeinit();
 }
-
