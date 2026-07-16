@@ -94,4 +94,5 @@ int main(void) {
 
     /* deinit zengine */
     ZEngineDeinit();
+    deinitBoard();
 }
