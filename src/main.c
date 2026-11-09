@@ -1,57 +1,48 @@
 /* licensed under GPL v3.0 see https://github.com/ZDev22/ZEngine/blob/main/LICENSE for current license
 
 An example implementation on how to init and use zengine, as well as a few zdeps!
-
-#define FPS_CAP 60.f // set the framerate, dont define for no FPS cap
 */
 
 #define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
-/* main.c */
-#define FPS_CAP 120.f
-#define TRACK_FPS
-
 /* ZENGINE */
 #define ZENGINE_IMPLEMENTATION
-#define ZENGINE_DEPS_DEFINED
-//#define ZENGINE_DISABLE_VSYNC
+#define ZENGINE_DISABLE_VSYNC
 #include "zengine.h"
-#include "ztext.h"
 
-#define SPRITES_IMPLEMENTATION
-#include "sprites.h"
+//#define FPS_CAP 60.f
 
-/* ZFleet */
+#ifdef TRACK_FPS
+    #include <stdio.h>
+#endif
+
+/* games */
 #include "zmarble/zmarble.h"
 
 #include <time.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <stdio.h>
 
-unsigned int fps = 0;
+unsigned short fps = 0;
 float appTimer = 0.f;
 struct timespec fpsTime;
 struct timespec fpsLastTime;
 
-int main(void) {
-    /* set gpu vars */
+int main() {
+    /* init engine */
+#ifndef _WIN32
     setenv("__GL_YIELD", "USLEEP", 1);
     setenv("MESA_NO_ERROR", "1", 1);
+#endif
 
-    /* init window */
+    RGFW_init("z", RGFW_initVulkan);
     zwindow = RGFW_createWindow("...", 0, 0, 720, 480, 0);
-
-    /* init zengine */
     ZEngineInit();
-    initBoard();
-    RGFW_window_maximize(zwindow);
+    initZMarble();
 
-    /* set runtime vars  */
+#if defined(TRACK_FPS) || defined(FPS_CAP)
     clock_gettime(CLOCK_MONOTONIC, &fpsLastTime);
-    srand(fpsLastTime.tv_nsec);
-
+#endif
     while (!RGFW_window_shouldClose(zwindow)) {
         /* calculate fps */
         clock_gettime(CLOCK_MONOTONIC, &fpsTime);
@@ -61,7 +52,8 @@ int main(void) {
         appTimer += deltaTime;
 
 #ifdef FPS_CAP
-        usleep((int)(((1.f / FPS_CAP) * 1000000.f) - (deltaTime * 100000.f)));
+        float sleep = ((1.f / FPS_CAP) * 1000000.f) - (deltaTime * 100000.f);
+        if (sleep > 0.f) { usleep((useconds_t)sleep); }
 #endif
 
 #ifdef TRACK_FPS
@@ -74,7 +66,6 @@ int main(void) {
         }
         fps++;
 #endif
-
         /* poll window events */
         RGFW_event event;
         while (RGFW_window_checkEvent(zwindow, &event)) {
@@ -84,15 +75,15 @@ int main(void) {
             }
         }
 
-        updateBoard();
+        tickZMarble();
+
         ZEngineRender();
     }
 
-    /* free window */
     RGFW_window_close(zwindow);
     zwindow = NULL;
-
-    /* deinit zengine */
     ZEngineDeinit();
-    deinitBoard();
+    RGFW_deinit();
+    deinitZMarble();
 }
+

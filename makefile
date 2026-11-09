@@ -1,24 +1,25 @@
 CC = gcc
-CFLAGS = -march=native -O3 -Wall -Wextra -Wno-maybe-uninitialized -Wno-override-init -std=c99 -ffast-math -DZENGINE_MAX_SPRITES=10000 -DZENGINE_MAX_TEXTURES=20 -DZENGINE_DISABLE_AUDIO
-#CFLAGS = -O0 -g3 -Wall -Wextra -Wno-maybe-uninitialized -Wno-override-init -std=c99 -fsanitize=address -DZENGINE_DEBUG -DZENGINE_MAX_SPRITES=10000 -DZENGINE_MAX_TEXTURES=20 -DZENGINE_DISABLE_AUDIO
+#CC = musl-gcc
+CFLAGS = -march=native -O3 -Wall -Wextra -Wno-maybe-uninitialized -Wno-override-init -Wno-missing-field-initializers -std=c99 -ffast-math -DZENGINE_MAX_SPRITES=10000 -DZENGINE_MAX_TEXTURES=100
+#CFLAGS = -O0 -g3 -Wall -Wextra -Wno-maybe-uninitialized -Wno-override-init -Wno-missing-field-initializers -std=c99 -fsanitize=address -DZENGINE_DEBUG -DZENGINE_ENABLE_VALIDATION_LAYERS -DTRACK_FPS -DZENGINE_MAX_SPRITES=10000 -DZENGINE_MAX_TEXTURES=100
 LDFLAGS = -lm
 
 BIN := bin/main
 
-UNAME_S := $(shell uname)
+UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S),Linux)
     LDFLAGS += -lX11 -lXrandr -lXext -lXcursor -lXi -lvulkan -lpulse
 else ifeq ($(UNAME_S),Darwin)
-	VULKANSDK ?= $(HOME)/VulkanSDK/current/macOS
-	export VK_ICD_FILENAMES := $(VULKANSDK)/share/vulkan/icd.d/MoltenVK_icd.json
+	VULKANSDK ?= $(shell ls -d $(HOME)/VulkanSDK/*/macOS)
 	CFLAGS += -I$(VULKANSDK)/include
-	LDFLAGS += -L$(VULKANSDK)/lib -Wl,-rpath,$(VULKANSDK)/lib -lMoltenVK -lc++ -framework Cocoa -framework Metal -ObjC
+	LDFLAGS += -L$(VULKANSDK)/lib -Wl,-rpath,$(VULKANSDK)/lib -lMoltenVK -lc++ -framework Cocoa -framework Metal -ObjC -framework CoreAudio -framework AudioToolbox
 endif
 
 MAKEFLAGS += -j$(shell nproc)
 
 SRC := $(shell find . -name '*.c')
+SRC += $(shell find . -name '*.cpp')
 OBJ := $(patsubst %.c,bin/obj/%.o,$(SRC))
 
 VERT_SHADERS := $(wildcard src/shaders/*.vert)
@@ -43,10 +44,10 @@ bin/obj/%.o: %.c
 
 bin/shaders/%.vert.spv: src/shaders/%.vert
 	@mkdir -p bin/shaders
-	glslc $< -o $@
+	glslc -O --target-env=vulkan1.2 $< -o $@
 bin/shaders/%.frag.spv: src/shaders/%.frag
 	@mkdir -p bin/shaders
-	glslc $< -o $@
+	glslc -O --target-env=vulkan1.2 $< -o $@
 
 copyAssets:
 	@mkdir -p bin/assets

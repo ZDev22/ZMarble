@@ -23,6 +23,7 @@ zcollide_squareCollision(sprites[0], sprites[1]); - check the collision between 
 _Bool zcollide_squareCollision(float positionAx, float positionAy, float scaleAx, float scaleAy, float positionBx, float positionBy, float scaleBx, float scaleBy);
 _Bool zcollide_circleCollision(float circleAx, float circleAy, float radiusA, float circleBx, float circleBy, float radiusB);
 _Bool zcollide_pointCircleCollision(float pointx, float pointy, float circlex, float circley, float radius);
+_Bool zcollide_pointSquareCollision(float pointx, float pointy, float positionx, float positiony, float scalex, float scaley);
 
 #ifdef ZCOLLIDE_IMPLEMENTATION
 
@@ -49,6 +50,15 @@ _Bool zcollide_pointCircleCollision(float pointx, float pointy, float circlex, f
     if (fabs(circlex - pointx) > radius) { return 0; }
     if (fabs(circley - pointy) < radius) { return 1; }
     return 0;
+}
+
+_Bool zcollide_pointSquareCollision(float pointx, float pointy, float positionx, float positiony, float scalex, float scaley) {
+    float pointAx = positionx - scalex * .5f;
+    float pointAy = positiony - scaley * .5f;
+    float pointBx = positionx + scalex * .5f;
+    float pointBy = positiony + scaley * .5f;
+
+    return pointx >= pointAx && pointx <= pointBx && pointy <= pointAy && pointy >= pointBy;
 }
 
 #endif // ZCOLLIDE_IMPLEMENTATION

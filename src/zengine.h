@@ -1,21 +1,26 @@
 /* licensed under GPL v3.0 see https://github.com/ZDev22/ZEngine/blob/main/LICENSE for current license
  * RGFW and stb_image MUST be initialized. See zdeps.c for an example implementation, or just use it.
 
-#define ZENGINE_IMPLEMENTATION - define functions INCLUDE IN MAIN.CPP ONLY
+#define ZENGINE_IMPLEMENTATION - define functions INCLUDE IN MAIN.C ONLY
 #define ZENGINE_DISABLE_VSYNC - extend beyond mortal limitations and exceed maximum fps
 #define ZENGINE_SPRITE_MAPMODE_MANUAL - manually change the ZEngineSpriteRemap flag whenever you update sprite data
-#define ZENGINE_SPRITE_MATRIXMODE_MANUAL - manually call sprites[0].setRotationMatrix() for every sprite you need
-#define ZENGINE_DEPTHMODE_FIRST - makes it so the first created sprites get layered on top of new ones
-#define ZENGINE_DEFAULT_TEXTURE "assets/img/bird.png" - change the default error texture to whatever you want
 
 COMPILER FLAGS:
 -DZENGINE_DEBUG - adds debug printing for debugging.
--DZENGINE_MAX_SPRITES 10000 - the maximum amount of sprite the engine can load at once (more sprites, more memory usage)
--DZENGINE_MAX_TEXTURES 50 - the maximum amount of texture the engine can load at once
+-DZENGINE_MAX_SPRITES=10000 - the maximum amount of sprite the engine can load at once (more sprites, more memory usage)
+-DZENGINE_MAX_TEXTURES=50 - the maximum amount of texture the engine can load at once
+-DZENGINE_ENABLE_VALIDATION_LAYERS - enable vulkan validation layers, validation messages print to stderr
+-DZENGINE_MAX_FRAMES_IN_FLIGHT=2 - change the maximum frames in flight (default 2)
 */
 
 #ifndef ZENGINE_H
 #define ZENGINE_H
+
+#ifdef __cplusplus
+    extern "C" {
+#else
+    #include <stdbool.h>
+#endif
 
 #ifdef ZENGINE_IMPLEMENTATION
 /* define a few necissary macros if not already defined */
@@ -36,6 +41,11 @@ COMPILER FLAGS:
     #define ZENGINE_MAX_TEXTURES 25
 #endif
 
+/* misc definitions */
+#ifndef MAX_FRAMES_IN_FLIGHT
+    #define MAX_FRAMES_IN_FLIGHT 2
+#endif
+
 /* debugging */
 #define ZENGINE_PRINT(x, ...)
 #define ZENGINE_THROW(x) (x)
@@ -47,10 +57,6 @@ COMPILER FLAGS:
 
     #undef ZENGINE_PRINT
     #define ZENGINE_PRINT(x, ...) printf(x, ##__VA_ARGS__)
-#endif
-
-#ifndef ZENGINE_DEFAULT_TEXTURE
-    #define ZENGINE_DEFAULT_TEXTURE "assets/img/e.png"
 #endif
 
 #endif // ZENGINE_IMPLEMENTATION
@@ -119,19 +125,18 @@ typedef struct SwapChainSupportDetails {
 typedef struct QueueFamilyIndices {
     unsigned int graphicsFamily;
     unsigned int presentFamily;
-    _Bool graphicsFamilyHasValue;
-    _Bool presentFamilyHasValue;
+    bool graphicsFamilyHasValue;
+    bool presentFamilyHasValue;
 } QueueFamilyIndices;
 
 typedef struct Texture {
-    VkImageLayout layout;
     VkImage image;
     VkDeviceMemory memory;
     VkImageView view;
     VkSampler sampler;
     VkBuffer buffer;
     VkDeviceMemory bufferMemory;
-    _Bool loaded;
+    bool loaded;
 } Texture;
 
 /* extern vars */
@@ -139,12 +144,13 @@ extern double deltaTime;
 extern struct Texture spriteTextures[ZENGINE_MAX_TEXTURES];
 extern struct Sprite sprites[ZENGINE_MAX_SPRITES];
 extern unsigned int spritesSize;
+extern unsigned int availibleSpriteSize;
 extern struct Model zmodel;
 extern Camera camera;
-extern _Bool framebufferResized;
+extern bool framebufferResized;
 extern RGFW_window* zwindow;
 #ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
-    extern _Bool ZEngineSpriteRemap;
+    extern bool ZEngineSpriteRemap;
 #endif
 
 /* ZENGINE FORWARD-DECLARED FUNCTIONS */
@@ -152,15 +158,13 @@ void ZEngineInit();
 void ZEngineRender();
 void ZEngineDeinit();
 
-/* sprite funcs */
-void createSprite(float positionx, float positiony, float scalex, float scaley, float rotation, unsigned int textureIndex);
-Sprite* createSpritePtr(float posx, float posy, float scalex, float scaley, float rotation, unsigned int textureIndex);
-void deleteSpritePtr(Sprite* sprite);
-void deleteSprite(unsigned int sprite);
-void setRotationMatrix(Sprite* sprite);
+/* sprite API */
+Sprite* createSprite(float positionx, float positiony, float scalex, float scaley, float rotation, unsigned int textureIndex);
+void deleteSprite(Sprite* sprite);
+void deleteAllSprites(void);
+void rotateSprite(Sprite* sprite, float rotation);
 
 /* engine funcs */
-void createCommandBuffers();
 VkShaderModule createShaderModule(const char* filepath);
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 unsigned int findMemoryType(unsigned int typeFilter, VkMemoryPropertyFlags properties);
@@ -182,33 +186,35 @@ void createBuffer(Buffer* buffer, VkDeviceSize instanceSize, unsigned int instan
 Camera camera;
 
 double deltaTime = 0.0; /* deltaTime, do what you will. Example implementation in main.cpp */
-_Bool ZEngineClose = 0; /* flag to show when the engine is closing */
+bool ZEngineClose = 0; /* flag to show when the engine is closing */
 #ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
-    _Bool ZEngineSpriteRemap = 1; /* flag to update sprite data buffer with ZENGINE_SPRITE_MAPMODE_MANUAL */
+    bool ZEngineSpriteRemap = 1; /* flag to update sprite data buffer with ZENGINE_SPRITE_MAPMODE_MANUAL */
 #endif
 
 /* texture vecs */
 struct Texture spriteTextures[ZENGINE_MAX_TEXTURES] = {0};
 VkCommandBuffer textureCommandBuffer;
-VkCommandBufferAllocateInfo textureAllocInfo = {0};
-VkMemoryAllocateInfo textureMoreAllocInfo = {0};
-VkCommandBufferBeginInfo textureBeginInfo = {0};
-VkImageCreateInfo textureImageInfo = {0};
-VkBufferImageCopy textureRegion = {0};
-VkSubmitInfo textureSubmitInfo = {0};
-VkBufferCreateInfo textureBufferInfo = {0};
-VkImageViewCreateInfo textureViewInfo = {0};
-VkDescriptorImageInfo textureMoreImageInfo = {0};
-VkWriteDescriptorSet textureImageWrite = {0};
+VkCommandBufferAllocateInfo textureAllocInfo = {(VkStructureType)0};
+VkMemoryAllocateInfo textureMoreAllocInfo = {(VkStructureType)0};
+VkCommandBufferBeginInfo textureBeginInfo = {(VkStructureType)0};
+VkImageCreateInfo textureImageInfo = {(VkStructureType)0};
+VkBufferImageCopy textureRegion = {(VkStructureType)0};
+VkSubmitInfo textureSubmitInfo = {(VkStructureType)0};
+VkBufferCreateInfo textureBufferInfo = {(VkStructureType)0};
+VkImageViewCreateInfo textureViewInfo = {(VkStructureType)0};
+VkDescriptorImageInfo textureMoreImageInfo = {(VkSampler)0};
+VkWriteDescriptorSet textureImageWrite = {(VkStructureType)0};
 
 /* window vars */
-_Bool framebufferResized = 0;
+bool framebufferResized = 0;
 RGFW_window* zwindow = NULL;
 VkExtent2D windowExtent;
 
 /* sprite vars */
 struct Sprite sprites[ZENGINE_MAX_SPRITES] = {0};
+unsigned int availibleSprites[ZENGINE_MAX_SPRITES];
 unsigned int spritesSize = 0;
+unsigned int availibleSpriteSize = 0;
 
 /* device vars */
 VkInstance instance;
@@ -220,7 +226,10 @@ VkDevice device_;
 VkQueue presentQueue_;
 VkSurfaceKHR surface_;
 VkQueue graphicsQueue_;
-_Bool uniformBuffer = 0;
+bool uniformBuffer = 0;
+#ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
+VkDebugUtilsMessengerEXT debugMessenger;
+#endif
 
 /* renderer vars */
 VkCommandBuffer* commandBuffers = NULL;
@@ -249,11 +258,12 @@ VkDeviceMemory* depthImageMemorys = NULL;
 VkImageView* depthImageViews = NULL;
 VkImage* swapChainImages = NULL;
 VkImageView* swapChainImageViews = NULL;
-VkSemaphore imageAvailableSemaphores;
-VkSemaphore renderFinishedSemaphores;
-VkFence inFlightFences;
+VkSemaphore* renderFinishedSemaphores = NULL;
+VkSemaphore imageAvailableSemaphores[MAX_FRAMES_IN_FLIGHT];
+VkFence inFlightFences[MAX_FRAMES_IN_FLIGHT];
 VkFence* imagesInFlight = NULL;
 unsigned int imageCount;
+unsigned int currentFrame = 0;
 
 /* SWAP CHAIN FUNCTIONS */
 void createSwapChain() {
@@ -271,7 +281,7 @@ void createSwapChain() {
     imageCount = swapChainSupport.capabilities.minImageCount + 1;
         if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) { imageCount = swapChainSupport.capabilities.maxImageCount; }
 
-    VkSwapchainCreateInfoKHR createInfo = {0};
+    VkSwapchainCreateInfoKHR createInfo = {(VkStructureType)0};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     createInfo.surface = surface_;
     createInfo.minImageCount = imageCount;
@@ -314,7 +324,7 @@ void createSwapChain() {
     swapChainImageViews = (VkImageView*)malloc(imageCount * sizeof(VkImageView));
 
     for (unsigned char i = 0; i < (unsigned char)imageCount; i++) {
-        VkImageViewCreateInfo viewInfo = {0};
+        VkImageViewCreateInfo viewInfo = {(VkStructureType)0};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = swapChainImages[i];
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -371,7 +381,7 @@ void createSwapChain() {
     dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 
     VkAttachmentDescription attachments[2] = { colorAttachment, depthAttachment };
-    VkRenderPassCreateInfo renderPassInfo = {0};
+    VkRenderPassCreateInfo renderPassInfo = {(VkStructureType)0};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = 2;
     renderPassInfo.pAttachments = attachments;
@@ -388,7 +398,7 @@ void createSwapChain() {
     depthImageViews = (VkImageView*)malloc(imageCount * sizeof(VkImageView));
 
     for (unsigned char i = 0; i < (unsigned char)imageCount; i++) {
-        VkImageCreateInfo imageInfo = {0};
+        VkImageCreateInfo imageInfo = {(VkStructureType)0};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
         imageInfo.extent.width = windowExtent.width;
@@ -405,7 +415,7 @@ void createSwapChain() {
         imageInfo.flags = 0;
         createImageWithInfo(&imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &depthImages[i], &depthImageMemorys[i]);
 
-        VkImageViewCreateInfo viewInfo = {0};
+        VkImageViewCreateInfo viewInfo = {(VkStructureType)0};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = depthImages[i];
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -426,7 +436,7 @@ void createSwapChain() {
         imagesInFlight[i] = VK_NULL_HANDLE;
         const VkImageView attachments[2] = { swapChainImageViews[i], depthImageViews[i]};
 
-        VkFramebufferCreateInfo framebufferInfo = {0};
+        VkFramebufferCreateInfo framebufferInfo = {(VkStructureType)0};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = renderPass;
         framebufferInfo.attachmentCount = 2;
@@ -437,16 +447,21 @@ void createSwapChain() {
         vkCreateFramebuffer(device_, &framebufferInfo, NULL, &swapChainFramebuffers[i]);
     }
 
-    VkSemaphoreCreateInfo semaphoreInfo = {0};
+    VkSemaphoreCreateInfo semaphoreInfo = {(VkStructureType)0};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-    VkFenceCreateInfo fenceInfo = {0};
+    VkFenceCreateInfo fenceInfo = {(VkStructureType)0};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    vkCreateSemaphore(device_, &semaphoreInfo, NULL, &imageAvailableSemaphores);
-    vkCreateSemaphore(device_, &semaphoreInfo, NULL, &renderFinishedSemaphores);
-    vkCreateFence(device_, &fenceInfo, NULL, &inFlightFences);
+    for (unsigned char i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkCreateSemaphore(device_, &semaphoreInfo, NULL, &imageAvailableSemaphores[i]);
+        vkCreateFence(device_, &fenceInfo, NULL, &inFlightFences[i]);
+    }
+    renderFinishedSemaphores = (VkSemaphore*)malloc(imageCount * sizeof(VkSemaphore));
+    for (unsigned char i = 0; i < (unsigned char)imageCount; i++) {
+        vkCreateSemaphore(device_, &semaphoreInfo, NULL, &renderFinishedSemaphores[i]);
+    }
 }
 
 void deleteSwapChain() {
@@ -456,14 +471,15 @@ void deleteSwapChain() {
         vkDestroyImage(device_, depthImages[i], NULL);
         vkFreeMemory(device_, depthImageMemorys[i], NULL);
         vkDestroyImageView(device_, swapChainImageViews[i], NULL);
+        vkDestroySemaphore(device_, renderFinishedSemaphores[i], NULL);
+    }
+    for (unsigned char i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkDestroySemaphore(device_, imageAvailableSemaphores[i], NULL);
+        vkDestroyFence(device_, inFlightFences[i], NULL);
     }
 
     vkDestroyRenderPass(device_, renderPass, NULL);
     if (!ZEngineClose) vkDestroySwapchainKHR(device_, swapChain, NULL);
-
-    vkDestroySemaphore(device_, imageAvailableSemaphores, NULL);
-    vkDestroySemaphore(device_, renderFinishedSemaphores, NULL);
-    vkDestroyFence(device_, inFlightFences, NULL);
 
     oldSwapChain = VK_NULL_HANDLE;
     free(swapChainImages);
@@ -473,6 +489,7 @@ void deleteSwapChain() {
     free(depthImageMemorys);
     free(swapChainImageViews);
     free(imagesInFlight);
+    free(renderFinishedSemaphores);
 }
 
 /* TEXTURE FUNCTIONS */
@@ -499,6 +516,13 @@ void createTexture(const char* filepath, float opacity, unsigned int index) {
 }
 
 void createTextureExt(const unsigned char* data, unsigned int index, unsigned int width, unsigned int height, VkDeviceSize imageSize, VkFormat format) {
+#ifdef ZENGINE_DEBUG
+    if (index > ZENGINE_MAX_TEXTURES - 1) {
+        ZENGINE_PRINT("The texture you are trying to load exceeds the texture limit! Please make sure -DZENGINE_MAX_TEXTURES is higher than the loaded index!");
+        exit(1);
+    }
+#endif
+
     deleteTexture(index);
     spriteTextures[index].loaded = 1;
 
@@ -529,12 +553,16 @@ void createTextureExt(const unsigned char* data, unsigned int index, unsigned in
     createImageWithInfo(&textureImageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &spriteTextures[index].image, &spriteTextures[index].memory);
 
     vkBeginCommandBuffer(textureCommandBuffer, &textureBeginInfo);
-    vkCmdCopyBufferToImage(textureCommandBuffer, spriteTextures[index].buffer, spriteTextures[index].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &textureRegion);
-    vkEndCommandBuffer(textureCommandBuffer);
 
+    VkImageMemoryBarrier barrierToTransfer = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, NULL, 0, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, spriteTextures[index].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
+    VkImageMemoryBarrier barrierToShaderRead = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, NULL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, spriteTextures[index].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
+    vkCmdPipelineBarrier( textureCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &barrierToTransfer );
+    vkCmdCopyBufferToImage(textureCommandBuffer, spriteTextures[index].buffer, spriteTextures[index].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &textureRegion);
+
+    vkCmdPipelineBarrier( textureCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &barrierToShaderRead );
+    vkEndCommandBuffer(textureCommandBuffer);
     vkQueueSubmit(graphicsQueue_, 1, &textureSubmitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(graphicsQueue_);
-
     vkDestroyBuffer(device_, spriteTextures[index].buffer, NULL);
     vkFreeMemory(device_, spriteTextures[index].bufferMemory, NULL);
 
@@ -547,16 +575,12 @@ void createTextureExt(const unsigned char* data, unsigned int index, unsigned in
     vkUpdateDescriptorSets(device_, 1, &textureImageWrite, 0, NULL);
 }
 
-/* BUFFER FUNCS */
+/* ZENIGNE HELPER FUNCTIONS */
 void createBuffer(Buffer* buffer, VkDeviceSize instanceSize, unsigned int instanceCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags) {
-    /* HOW TO INIT YOUR BUFFER:
-        buffer = (Buffer*)calloc(1, sizeof(Buffer));
-    */
-
     buffer->bufferSize = instanceSize * instanceCount;
     buffer->mapped = NULL;
 
-    VkBufferCreateInfo bufferInfo = {0};
+    VkBufferCreateInfo bufferInfo = {(VkStructureType)0};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = buffer->bufferSize;
     bufferInfo.usage = usageFlags;
@@ -566,7 +590,7 @@ void createBuffer(Buffer* buffer, VkDeviceSize instanceSize, unsigned int instan
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(device_, buffer->buffer, &memRequirements);
 
-    VkMemoryAllocateInfo allocInfo = {0};
+    VkMemoryAllocateInfo allocInfo = {(VkStructureType)0};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, memoryPropertyFlags);
@@ -575,26 +599,6 @@ void createBuffer(Buffer* buffer, VkDeviceSize instanceSize, unsigned int instan
     ZENGINE_THROW(vkBindBufferMemory(device_, buffer->buffer, buffer->memory, 0));
 }
 
-void deleteBuffer(Buffer* buffer) {
-    vkDestroyBuffer(device_, buffer->buffer, NULL);
-    vkFreeMemory(device_, buffer->memory, NULL);
-    buffer->buffer = VK_NULL_HANDLE;
-    buffer->memory = VK_NULL_HANDLE;
-}
-
-void map(Buffer* buffer) {
-    if (buffer->mapped == NULL) {
-        ZENGINE_THROW(vkMapMemory(device_, buffer->memory, 0, buffer->bufferSize, 0, &buffer->mapped));
-    }
-}
-void unmap(Buffer* buffer) {
-    if (buffer->mapped != NULL) {
-        vkUnmapMemory(device_, buffer->memory);
-        buffer->mapped = NULL;
-    }
-}
-
-/* ZENIGNE HELPER FUNCTIONS */
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
     QueueFamilyIndices indices;
     unsigned int queueFamilyCount = 0;
@@ -633,7 +637,7 @@ void createImageWithInfo(const VkImageCreateInfo* imageInfo, VkMemoryPropertyFla
     VkMemoryRequirements memRequirements;
     vkGetImageMemoryRequirements(device_, *image, &memRequirements);
 
-    VkMemoryAllocateInfo allocInfo = {0};
+    VkMemoryAllocateInfo allocInfo = {(VkStructureType)0};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
@@ -642,22 +646,10 @@ void createImageWithInfo(const VkImageCreateInfo* imageInfo, VkMemoryPropertyFla
     vkBindImageMemory(device_, *image, *imageMemory, 0);
 }
 
-/* ZENGINE HELPER FUNCTIONS */
-void createCommandBuffers() {
-    commandBuffers = (VkCommandBuffer*)malloc(imageCount * sizeof(VkCommandBuffer));
-
-    VkCommandBufferAllocateInfo allocInfo = {0};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = commandPool;
-    allocInfo.commandBufferCount = imageCount;
-    vkAllocateCommandBuffers(device_, &allocInfo, commandBuffers);
-}
-
 VkShaderModule createShaderModule(const char* filepath) {
     FILE* file = fopen(filepath, "rb");
     if (!file) {
-        printf("Failed to open shader!");
+        ZENGINE_PRINT("Failed to open shader: %s\n", filepath);
         exit(1);
     }
 
@@ -668,14 +660,14 @@ VkShaderModule createShaderModule(const char* filepath) {
     void* buffer = (void*)malloc(fileSize);
     if (!buffer) {
         fclose(file);
-        printf("Failed to create shader buffer!");
+        ZENGINE_PRINT("Failed to create shader buffer!\n");
         exit(1);
     }
 
     fread(buffer, 1, fileSize, file);
     fclose(file);
 
-    VkShaderModuleCreateInfo createInfo = {0};
+    VkShaderModuleCreateInfo createInfo = {(VkStructureType)0};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = fileSize;
     createInfo.pCode = (const unsigned int*)buffer;
@@ -683,7 +675,7 @@ VkShaderModule createShaderModule(const char* filepath) {
     VkShaderModule shaderModule;
     if (vkCreateShaderModule(device_, &createInfo, NULL, &shaderModule) != VK_SUCCESS) {
         free(buffer);
-        ZENGINE_PRINT("Failed to create shader module!");
+        ZENGINE_PRINT("Failed to create shader module!\n");
         exit(1);
     }
 
@@ -691,56 +683,73 @@ VkShaderModule createShaderModule(const char* filepath) {
     return shaderModule;
 }
 
-void createSprite(float posx, float posy, float scalex, float scaley, float rotation, unsigned int textureIndex) {
-    if (spritesSize >= ZENGINE_MAX_SPRITES) { return; }
+Sprite* createSprite(float positionx, float positiony, float scalex, float scaley, float rotation, unsigned int textureIndex) {
+    if (availibleSpriteSize == 0) {
+        if (spritesSize == ZENGINE_MAX_SPRITES) { return NULL; }
 
-    sprites[spritesSize].position[0] = posx;
-    sprites[spritesSize].position[1] = posy;
-    sprites[spritesSize].scale[0] = scalex;
-    sprites[spritesSize].scale[1] = scaley;
-    sprites[spritesSize].rotation = rotation;
-    sprites[spritesSize].textureIndex = textureIndex;
-#ifdef ZENGINE_DEPTHMODE_FIRST
-    sprites[spritesSize].depth = spritesSize / ZENGINE_MAX_SPRITES;
-#else
-    sprites[spritesSize].depth = .999f - ((float)spritesSize * 0.00001f);
-#endif
-    spritesSize++;
-}
+        sprites[spritesSize].position[0] = positionx;
+        sprites[spritesSize].position[1] = positiony;
+        sprites[spritesSize].scale[0] = scalex;
+        sprites[spritesSize].scale[1] = scaley;
+        sprites[spritesSize].textureIndex = textureIndex;
+        sprites[spritesSize].depth = .999f - ((float)spritesSize * 0.00001f);
+        rotateSprite(&sprites[spritesSize], rotation);
+        spritesSize++;
 
-Sprite* createSpritePtr(float posx, float posy, float scalex, float scaley, float rotation, unsigned int textureIndex) {
-    if (spritesSize >= ZENGINE_MAX_SPRITES) { return NULL; }
-    createSprite(posx, posy, scalex, scaley, rotation, textureIndex);
-    return &sprites[spritesSize - 1];
-}
-
-void deleteSpritePtr(Sprite* sprite) {
-    deleteSprite(sprite - sprites);
-}
-
-void deleteSprite(unsigned int sprite) {
-    spritesSize--;
-    sprites[sprite] = sprites[spritesSize];
-    for (unsigned int i = sprite; i < spritesSize - 1; i++) {
-#ifdef ZENGINE_DEPTHMODE_FIRST
-        sprites[i].depth -= 1 / ZENGINE_MAX_SPRITES;
-#else
-        sprites[i].depth = .999f - ((float)i * 0.00001f);
-#endif
+        return &sprites[spritesSize - 1];
+    }
+    else {
+        availibleSpriteSize--;
+        sprites[availibleSprites[availibleSpriteSize]].position[0] = positionx;
+        sprites[availibleSprites[availibleSpriteSize]].position[1] = positiony;
+        sprites[availibleSprites[availibleSpriteSize]].scale[0] = scalex;
+        sprites[availibleSprites[availibleSpriteSize]].scale[1] = scaley;
+        sprites[availibleSprites[availibleSpriteSize]].textureIndex = textureIndex;
+        rotateSprite(&sprites[availibleSprites[availibleSpriteSize]], rotation);
+        return &sprites[availibleSprites[availibleSpriteSize]];
     }
 }
 
-void setRotationMatrix(Sprite* sprite) {
-    sprite->rotationMatrix[0] = cos(sprite->rotation * .01745329f);
-    sprite->rotationMatrix[2] = sin(sprite->rotation * .01745329f);
+void deleteSprite(Sprite* sprite) {
+    availibleSprites[availibleSpriteSize] = (unsigned int)(sprite - sprites);
+    availibleSpriteSize++;
+    sprite->scale[0] = 0.f;
+    sprite->scale[1] = 0.f;
+}
+
+void deleteAllSprites(void) {
+    spritesSize = 0;
+    availibleSpriteSize = 0;
+}
+
+void rotateSprite(Sprite* sprite, float rotation) {
+    sprite->rotation = rotation;
+    sprite->rotationMatrix[0] = cos(rotation * .01745329f);
+    sprite->rotationMatrix[2] = sin(rotation * .01745329f);
     sprite->rotationMatrix[1] = -sprite->rotationMatrix[2];
     sprite->rotationMatrix[3] = sprite->rotationMatrix[0];
 }
 
+/* vulkan validation layers */
+#ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
+static const char* validationLayers[] = {"VK_LAYER_KHRONOS_validation"};
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData) {
+    (void)messageSeverity;
+    (void)messageType;
+    (void)userData;
+
+    if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) { fprintf(stderr, "Vulkan validation error: %s\n", callbackData->pMessage); }
+    else { fprintf(stderr, "Vulkan validation: %s\n", callbackData->pMessage); }
+
+    return VK_FALSE;
+}
+#endif
+
 /* ZENGINE */
 void ZEngineInit() {
     ZENGINE_PRINT("Creating instance...\n"); //---------------------------------------------------------------------------------------------------------------
-    VkApplicationInfo appInfo = {0};
+    VkApplicationInfo appInfo = {(VkStructureType)0};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "ZDev";
     appInfo.pEngineName = "ZEngine";
@@ -748,7 +757,7 @@ void ZEngineInit() {
     appInfo.engineVersion = VK_MAKE_VERSION(1, 11, 0);
     appInfo.apiVersion =  VK_API_VERSION_1_2;
 
-    VkInstanceCreateInfo instanceInfo = {0};
+    VkInstanceCreateInfo instanceInfo = {(VkStructureType)0};
     instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instanceInfo.pApplicationInfo = &appInfo;
 
@@ -756,24 +765,52 @@ void ZEngineInit() {
     const char* instanceExtensions[] = {
         VK_KHR_SURFACE_EXTENSION_NAME,
         "VK_MVK_macos_surface"
+#ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
+        , VK_EXT_DEBUG_UTILS_EXTENSION_NAME /* extra extension for vulkan validation output */
+#endif
     };
 
-    instanceInfo.enabledExtensionCount = 2;
+    instanceInfo.enabledExtensionCount = sizeof(instanceExtensions) / sizeof(instanceExtensions[0]);
     instanceInfo.ppEnabledExtensionNames = instanceExtensions;
     instanceInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 #else
     size_t rgfWExtensionCount = 0;
     const char** rgfWExtensions = RGFW_getRequiredInstanceExtensions_Vulkan(&rgfWExtensionCount);
     if (!rgfWExtensions || rgfWExtensionCount == 0) {
-        printf("Failed to get Vulkan extensions");
+        ZENGINE_PRINT("Failed to get Vulkan extensions\n");
         exit(1);
     }
 
     ZENGINE_PRINT("Enabling extensions:\n");
     for (size_t i = 0; i < rgfWExtensionCount; i++) { ZENGINE_PRINT("     - %s\n", rgfWExtensions[i]); }
 
+#ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
+    /* add an extra extension for vulkan validation output */
+    size_t instanceExtensionCount = rgfWExtensionCount + 1;
+    const char* instanceExtensions[instanceExtensionCount];
+    for (size_t i = 0; i < rgfWExtensionCount; i++) { instanceExtensions[i] = rgfWExtensions[i]; }
+    instanceExtensions[rgfWExtensionCount] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+
+    instanceInfo.enabledExtensionCount = instanceExtensionCount;
+    instanceInfo.ppEnabledExtensionNames = instanceExtensions;
+#else
     instanceInfo.enabledExtensionCount = rgfWExtensionCount;
     instanceInfo.ppEnabledExtensionNames = rgfWExtensions;
+#endif
+#endif
+
+#ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
+    /* enable the vulkan validation layers */
+    instanceInfo.enabledLayerCount = sizeof(validationLayers) / sizeof(validationLayers[0]);
+    instanceInfo.ppEnabledLayerNames = validationLayers;
+
+    /* attach a debug messenger to the instance creation info, to also validate instance creation/destruction */
+    VkDebugUtilsMessengerCreateInfoEXT debugInfo = {(VkStructureType)0};
+    debugInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    debugInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    debugInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    debugInfo.pfnUserCallback = debugCallback;
+    instanceInfo.pNext = &debugInfo;
 #endif
 
 #ifdef ZENGINE_DEBUG
@@ -783,6 +820,17 @@ void ZEngineInit() {
     }
 #else
     vkCreateInstance(&instanceInfo, NULL, &instance);
+#endif
+
+#ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
+    /* create a debug messenger to validate the engine during its entire lifetime */
+    PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+    if (vkCreateDebugUtilsMessenger == NULL) {
+        fprintf(stderr, "Failed to load vkCreateDebugUtilsMessengerEXT..\n");
+        exit(1);
+    }
+
+    ZENGINE_THROW(vkCreateDebugUtilsMessenger(instance, &debugInfo, NULL, &debugMessenger));
 #endif
 
     ZENGINE_PRINT("Creating surface...\n"); RGFW_window_createSurface_Vulkan(zwindow, instance, &surface_); //---------------------------------------------------------------------------------------------------------------
@@ -865,18 +913,24 @@ void ZEngineInit() {
     if (queueFamilySize == 2) { uniqueQueueFamilies[1] = indices.presentFamily; }
 
     VkDeviceQueueCreateInfo queueCreateInfos[queueFamilySize];
-
+    float queuePriorities = 1.f;
     for (unsigned char i = 0; i < queueFamilySize; i++) {
-        VkDeviceQueueCreateInfo queueCreateInfo = {0};
+        VkDeviceQueueCreateInfo queueCreateInfo = {(VkStructureType)0};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfo.queueFamilyIndex = uniqueQueueFamilies[i];
         queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = NULL;
+        queueCreateInfo.pQueuePriorities = &queuePriorities;
         queueCreateInfos[i] = queueCreateInfo;
     }
 
-    VkDeviceCreateInfo deviceInfo = {0};
+    VkPhysicalDeviceVulkan12Features deviceVulkanUpdate = {0};
+    deviceVulkanUpdate.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    deviceVulkanUpdate.runtimeDescriptorArray = VK_TRUE;
+    deviceVulkanUpdate.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+
+    VkDeviceCreateInfo deviceInfo = {(VkStructureType)0};
     deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceInfo.pNext = &deviceVulkanUpdate;
     deviceInfo.pQueueCreateInfos = queueCreateInfos;
     deviceInfo.queueCreateInfoCount = queueFamilySize;
 
@@ -900,7 +954,7 @@ void ZEngineInit() {
 
     ZENGINE_PRINT("Creating command pool...\n"); //---------------------------------------------------------------------------------------------------------------
     QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
-    VkCommandPoolCreateInfo commandPoolInfo = {0};
+    VkCommandPoolCreateInfo commandPoolInfo = {(VkStructureType)0};
     commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     commandPoolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
     commandPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -910,17 +964,24 @@ void ZEngineInit() {
     ZENGINE_PRINT("Creating swapChain...\n"); //---------------------------------------------------------------------------------------------------------------
     createSwapChain();
     ZENGINE_PRINT("Creating command buffers...\n");
-    createCommandBuffers();
+    commandBuffers = (VkCommandBuffer*)malloc(imageCount * sizeof(VkCommandBuffer));
+
+    VkCommandBufferAllocateInfo commandBufferInfo = {(VkStructureType)0};
+    commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    commandBufferInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    commandBufferInfo.commandPool = commandPool;
+    commandBufferInfo.commandBufferCount = imageCount;
+    vkAllocateCommandBuffers(device_, &commandBufferInfo, commandBuffers);
 
     ZENGINE_PRINT("Initializing shaders...\n");
-    VkPipelineShaderStageCreateInfo shaderStages[2] = {0};
+    VkPipelineShaderStageCreateInfo shaderStages[2] = {(VkStructureType)0};
     shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shaderStages[0].module = createShaderModule("shaders/texture.vert.spv");
+    shaderStages[0].module = createShaderModule("shaders/z.vert.spv");
     shaderStages[0].pName = "main";
     shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shaderStages[1].module = createShaderModule("shaders/texture.frag.spv");
+    shaderStages[1].module = createShaderModule("shaders/z.frag.spv");
     shaderStages[1].pName = "main";
 
     ZENGINE_PRINT("Rasterizing pipeline data...\n");
@@ -939,23 +1000,23 @@ void ZEngineInit() {
     inputAttributes[1].format = VK_FORMAT_R32G32_SFLOAT;
     inputAttributes[1].offset = 8;
 
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo = {0};
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo = {(VkStructureType)0};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
     vertexInputInfo.vertexAttributeDescriptionCount = 2;
     vertexInputInfo.pVertexAttributeDescriptions = inputAttributes;
 
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly = {0};
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly = {(VkStructureType)0};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
-    VkPipelineViewportStateCreateInfo viewportState = {0};
+    VkPipelineViewportStateCreateInfo viewportState = {(VkStructureType)0};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
     viewportState.scissorCount = 1;
 
-    VkPipelineRasterizationStateCreateInfo rasterizer = {0};
+    VkPipelineRasterizationStateCreateInfo rasterizer = {(VkStructureType)0};
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
@@ -963,13 +1024,14 @@ void ZEngineInit() {
     rasterizer.cullMode = VK_CULL_MODE_NONE;
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
+    rasterizer.lineWidth = 1.f;
 
-    VkPipelineMultisampleStateCreateInfo multisampling = {0};
+    VkPipelineMultisampleStateCreateInfo multisampling = {(VkStructureType)0};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-    VkPipelineColorBlendAttachmentState colorBlendAttachment = {0};
+    VkPipelineColorBlendAttachmentState colorBlendAttachment = {(VkStructureType)0};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment.blendEnable = VK_TRUE;
     colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
@@ -979,13 +1041,13 @@ void ZEngineInit() {
     colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
-    VkPipelineColorBlendStateCreateInfo colorBlending = {0};
+    VkPipelineColorBlendStateCreateInfo colorBlending = {(VkStructureType)0};
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlending.logicOpEnable = VK_FALSE;
     colorBlending.attachmentCount = 1;
     colorBlending.pAttachments = &colorBlendAttachment;
 
-    VkPipelineDepthStencilStateCreateInfo depthStencil = {0};
+    VkPipelineDepthStencilStateCreateInfo depthStencil = {(VkStructureType)0};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;
@@ -993,14 +1055,14 @@ void ZEngineInit() {
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
-    VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    VkPipelineDynamicStateCreateInfo dynamicState = {0};
+    VkDynamicState dynamicStates[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dynamicState = {(VkStructureType)0};
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamicState.dynamicStateCount = 2;
     dynamicState.pDynamicStates = dynamicStates;
 
     ZENGINE_PRINT("Creating pipeline layout...\n");
-    VkDescriptorSetLayoutBinding layoutBindings[2] = {0};
+    VkDescriptorSetLayoutBinding layoutBindings[2] = {(VkStructureType)0};
     layoutBindings[0].binding = 0;
     if (uniformBuffer) { layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; }
     else { layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; }
@@ -1011,33 +1073,31 @@ void ZEngineInit() {
     layoutBindings[1].descriptorCount = ZENGINE_MAX_TEXTURES;
     layoutBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    VkDescriptorSetLayoutCreateInfo layoutInfo = {0};
+    VkDescriptorSetLayoutCreateInfo layoutInfo = {(VkStructureType)0};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = 2;
     layoutInfo.pBindings = layoutBindings;
     ZENGINE_THROW(vkCreateDescriptorSetLayout(device_, &layoutInfo, NULL, &descriptorSetLayout));
 
-    VkDescriptorPoolSize poolSizes[2] = {
-        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1},
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, ZENGINE_MAX_TEXTURES * (ZENGINE_MAX_TEXTURES + 1)}
-    };
-
-    VkDescriptorPoolCreateInfo descriptorPoolInfo = {0};
+    VkDescriptorPoolSize poolSizes[2] = {{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1}, {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, ZENGINE_MAX_TEXTURES * (ZENGINE_MAX_TEXTURES + 1)}};
+    VkDescriptorPoolCreateInfo descriptorPoolInfo = {(VkStructureType)0};
     descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     descriptorPoolInfo.poolSizeCount = 2;
     descriptorPoolInfo.pPoolSizes = poolSizes;
     descriptorPoolInfo.maxSets = ZENGINE_MAX_TEXTURES + 1;
     ZENGINE_THROW(vkCreateDescriptorPool(device_, &descriptorPoolInfo, NULL, &descriptorPool));
 
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {0};
+    VkPushConstantRange pipelinePushConstantRange = {VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT, 0, 20};
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {(VkStructureType)0};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-    pipelineLayoutInfo.pushConstantRangeCount = 0;
-    pipelineLayoutInfo.pPushConstantRanges = NULL;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pipelinePushConstantRange;
     ZENGINE_THROW(vkCreatePipelineLayout(device_, &pipelineLayoutInfo, NULL, &pipelineLayout));
 
-    VkGraphicsPipelineCreateInfo pipelineInfo = {0};
+    VkGraphicsPipelineCreateInfo pipelineInfo = {(VkStructureType)0};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.stageCount = 2;
     pipelineInfo.pStages = shaderStages;
@@ -1053,15 +1113,13 @@ void ZEngineInit() {
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-    ZENGINE_THROW(vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &graphicsPipeline));
+    ZENGINE_THROW(vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &graphicsPipeline)); // WINDOWS ERROR
 
     vkDestroyShaderModule(device_, shaderStages[0].module, NULL);
     vkDestroyShaderModule(device_, shaderStages[1].module, NULL);
 
     ZENGINE_PRINT("Initing textures...\n");
-    VkDescriptorImageInfo imageInfos[ZENGINE_MAX_TEXTURES] = {0};
-
-    VkDescriptorSetAllocateInfo allocInfo = {0};
+    VkDescriptorSetAllocateInfo allocInfo = {(VkStructureType)0};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = descriptorPool;
     allocInfo.descriptorSetCount = 1;
@@ -1115,7 +1173,7 @@ void ZEngineInit() {
     textureViewInfo.subresourceRange.baseArrayLayer = 0;
     textureViewInfo.subresourceRange.layerCount = 1;
 
-    VkSamplerCreateInfo textureSamplerInfo = {0};
+    VkSamplerCreateInfo textureSamplerInfo = {(VkStructureType)0};
     textureSamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     textureSamplerInfo.magFilter = VK_FILTER_NEAREST;
     textureSamplerInfo.minFilter = VK_FILTER_NEAREST;
@@ -1139,50 +1197,29 @@ void ZEngineInit() {
     textureImageWrite.descriptorCount = 1;
     textureImageWrite.pImageInfo = &textureMoreImageInfo;
 
-    createTexture(ZENGINE_DEFAULT_TEXTURE, 1.f, 0);
-    imageInfos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageInfos[0].imageView = spriteTextures[0].view;
-    imageInfos[0].sampler = spriteTextures[0].sampler;
-
-    spriteTextures[0].loaded = 0;
-    for (unsigned int i = 1; i < ZENGINE_MAX_TEXTURES; i++) {
-        spriteTextures[i] = spriteTextures[0];
-        imageInfos[i] = imageInfos[0];
-    }
-    spriteTextures[0].loaded = 1;
-
     ZENGINE_PRINT("Initing sprites...\n");
     camera.zoom[0]     = 1.f; camera.zoom[1]     = 1.f;
     camera.position[0] = 0.f; camera.position[1] = 0.f;
     camera.aspect      = (float)windowExtent.width / (float)windowExtent.height;
 
     /* load zmodel */
-    zmodel.vertices[0].pos[0] = -.5f;
-    zmodel.vertices[0].pos[1] = -.5f;
-    zmodel.vertices[0].cord[0] = 0.f;
-    zmodel.vertices[0].cord[1] = 0.f;
-    zmodel.vertices[1].pos[0] = .5f;
-    zmodel.vertices[1].pos[1] = -.5f;
-    zmodel.vertices[1].cord[0] = 1.f;
-    zmodel.vertices[1].cord[1] = 0.f;
-    zmodel.vertices[2].pos[0] = -.5f;
-    zmodel.vertices[2].pos[1] = .5f;
-    zmodel.vertices[2].cord[0] = 0.f;
-    zmodel.vertices[2].cord[1] = 1.f;
-    zmodel.vertices[3].pos[0] = .5f;
-    zmodel.vertices[3].pos[1] = .5f;
-    zmodel.vertices[3].cord[0] = 1.f;
-    zmodel.vertices[3].cord[1] = 1.f;
+    zmodel.vertices[0].pos[0] = -.5f; zmodel.vertices[0].pos[1] = -.5f;
+    zmodel.vertices[0].cord[0] = 0.f; zmodel.vertices[0].cord[1] = 0.f;
+    zmodel.vertices[1].pos[0] = .5f;  zmodel.vertices[1].pos[1] = -.5f;
+    zmodel.vertices[1].cord[0] = 1.f; zmodel.vertices[1].cord[1] = 0.f;
+    zmodel.vertices[2].pos[0] = -.5f; zmodel.vertices[2].pos[1] = .5f;
+    zmodel.vertices[2].cord[0] = 0.f; zmodel.vertices[2].cord[1] = 1.f;
+    zmodel.vertices[3].pos[0] = .5f;  zmodel.vertices[3].pos[1] = .5f;
+    zmodel.vertices[3].cord[0] = 1.f; zmodel.vertices[3].cord[1] = 1.f;
 
     createBuffer(&zmodel.vertexBuffer, sizeof(Vertex) * 4, 1, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    map(&zmodel.vertexBuffer);
+    vkMapMemory(device_, zmodel.vertexBuffer.memory, 0, zmodel.vertexBuffer.bufferSize, 0, &zmodel.vertexBuffer.mapped);
     memcpy(zmodel.vertexBuffer.mapped, (const void*)zmodel.vertices, (unsigned int)(sizeof(Vertex) * 4));
-    unmap(&zmodel.vertexBuffer);
+    vkUnmapMemory(device_, zmodel.vertexBuffer.memory);
 
     if (uniformBuffer) { createBuffer(&spriteDataBuffer, sizeof(Sprite) * ZENGINE_MAX_SPRITES, 1, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT); }
     else { createBuffer(&spriteDataBuffer, sizeof(Sprite) * ZENGINE_MAX_SPRITES, 1, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT); }
-
-    map(&spriteDataBuffer);
+    vkMapMemory(device_, spriteDataBuffer.memory, 0, spriteDataBuffer.bufferSize, 0, &spriteDataBuffer.mapped);
 
     /* allocate info */
     VkDescriptorBufferInfo bufferInfo = {0};
@@ -1191,7 +1228,7 @@ void ZEngineInit() {
     bufferInfo.range = sizeof(Sprite) * ZENGINE_MAX_SPRITES;
 
     ZENGINE_PRINT("Writing sprite descriptor sets...\n");
-    VkWriteDescriptorSet bufferWrite = {0};
+    VkWriteDescriptorSet bufferWrite = {(VkStructureType)0};
     bufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     bufferWrite.dstSet = spriteDataDescriptorSet;
     bufferWrite.dstBinding = 0;
@@ -1201,25 +1238,15 @@ void ZEngineInit() {
     bufferWrite.descriptorCount = 1;
     bufferWrite.pBufferInfo = &bufferInfo;
 
-    VkWriteDescriptorSet imageWrite = {0};
-    imageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    imageWrite.dstSet = spriteDataDescriptorSet;
-    imageWrite.dstBinding = 1;
-    imageWrite.dstArrayElement = 0;
-    imageWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    imageWrite.descriptorCount = ZENGINE_MAX_TEXTURES;
-    imageWrite.pImageInfo = imageInfos;
-
-    VkWriteDescriptorSet descriptorWrites[2] = { bufferWrite, imageWrite };
-    vkUpdateDescriptorSets(device_, 2, descriptorWrites, 0, NULL);
-
+    vkUpdateDescriptorSets(device_, 1, &bufferWrite, 0, NULL);
     ZENGINE_PRINT("ZEngine successfuly initialized!\n");
 }
 
 void ZEngineRender() {
-    vkWaitForFences(device_, 1, &inFlightFences, VK_TRUE, 0xFFFFFFFFFFFFFFFF);
+    vkWaitForFences(device_, 1, &inFlightFences[currentFrame], VK_TRUE, 0xFFFFFFFFFFFFFFFF);
     /* resize window */
-    if (vkAcquireNextImageKHR(device_, swapChain, 0xFFFFFFFFFFFFFFFF, imageAvailableSemaphores, VK_NULL_HANDLE, &currentImageIndex) == VK_ERROR_OUT_OF_DATE_KHR || framebufferResized) {
+    VkResult result = vkAcquireNextImageKHR(device_, swapChain, 0xFFFFFFFFFFFFFFFF, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &currentImageIndex);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
         /* recreate swapchain */
         vkDeviceWaitIdle(device_);
         oldSwapChain = swapChain;
@@ -1232,33 +1259,31 @@ void ZEngineRender() {
     }
 
     /* create command buffer */
-    VkCommandBufferBeginInfo beginInfo = {0};
+    VkCommandBufferBeginInfo beginInfo = {(VkStructureType)0};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     VkCommandBuffer commandBuffer = commandBuffers[currentImageIndex];
     vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
-    /* begine render pass */
-    VkRenderPassBeginInfo renderPassInfo = {0};
+    /* begin render pass */
+    VkClearValue clearValues[2] = {0};
+    clearValues[1].depthStencil = (VkClearDepthStencilValue){ 1.f, 0 };
+
+    VkRenderPassBeginInfo renderPassInfo = {(VkStructureType)0};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = renderPass;
     renderPassInfo.framebuffer = swapChainFramebuffers[currentImageIndex];
     renderPassInfo.renderArea.extent = windowExtent;
-
-    VkClearValue clearValues[2] = {0};
-
-    clearValues[1].depthStencil = (VkClearDepthStencilValue){ 1.f, 0 };
     renderPassInfo.clearValueCount = 2;
     renderPassInfo.pClearValues = clearValues;
-
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    VkRect2D scissor = {
-        .offset = {0, 0},
-        .extent = windowExtent
-    };
+    VkRect2D scissor;
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    scissor.extent = windowExtent;
 
-    VkViewport viewport = (VkViewport){0.f, 0.f, (float)windowExtent.width, (float)windowExtent.height, 0.f, 1.f};
+    VkViewport viewport = {0.f, 0.f, (float)windowExtent.width, (float)windowExtent.height, 0.f, 1.f};
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
@@ -1269,11 +1294,6 @@ void ZEngineRender() {
 
 #ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
     if (ZEngineSpriteRemap) {
-#endif
-#ifndef ZENGINE_SPRITE_MATRIXMODE_MANUAL
-        for (unsigned int i = 0; i < spritesSize; i++) {
-            setRotationMatrix(&sprites[i]);
-        }
 #endif
         memcpy(spriteDataBuffer.mapped, sprites, sizeof(Sprite) * spritesSize);
 #ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
@@ -1292,13 +1312,13 @@ void ZEngineRender() {
     vkEndCommandBuffer(commandBuffer);
 
     if (imagesInFlight[currentImageIndex] != VK_NULL_HANDLE) { vkWaitForFences(device_, 1, &imagesInFlight[currentImageIndex], VK_TRUE, 0xFFFFFFFFFFFFFFFF); }
-    imagesInFlight[currentImageIndex] = inFlightFences;
+    imagesInFlight[currentImageIndex] = inFlightFences[currentFrame];
 
-    const VkSemaphore waitSemaphores[1] = { imageAvailableSemaphores };
+    const VkSemaphore waitSemaphores[1] = { imageAvailableSemaphores[currentFrame] };
     const VkPipelineStageFlags waitStages[1] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    const VkSemaphore signalSemaphores[1] = { renderFinishedSemaphores };
+    const VkSemaphore signalSemaphores[1] = { renderFinishedSemaphores[currentImageIndex] };
 
-    VkSubmitInfo submitInfo = {0};
+    VkSubmitInfo submitInfo = {(VkStructureType)0};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
@@ -1308,10 +1328,10 @@ void ZEngineRender() {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    vkResetFences(device_, 1, &inFlightFences);
-    vkQueueSubmit(graphicsQueue_, 1, &submitInfo, inFlightFences);
+    vkResetFences(device_, 1, &inFlightFences[currentFrame]);
+    vkQueueSubmit(graphicsQueue_, 1, &submitInfo, inFlightFences[currentFrame]);
 
-    VkPresentInfoKHR presentInfo = {0};
+    VkPresentInfoKHR presentInfo = {(VkStructureType)0};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = signalSemaphores;
@@ -1320,6 +1340,7 @@ void ZEngineRender() {
     presentInfo.pImageIndices = &currentImageIndex;
 
     vkQueuePresentKHR(presentQueue_, &presentInfo);
+    currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void ZEngineDeinit() {
@@ -1338,20 +1359,40 @@ void ZEngineDeinit() {
     vkDestroySampler(device_, spriteTextures[0].sampler, NULL);
     vkFreeCommandBuffers(device_, commandPool, 1, &textureCommandBuffer);
 
-    ZENGINE_PRINT("Unmaping sprite data buffer\n"); unmap(&spriteDataBuffer);
-    ZENGINE_PRINT("Freeing sprite data buffer\n"); deleteBuffer(&spriteDataBuffer);
+    ZENGINE_PRINT("Freeing buffers\n");
+    vkDestroyBuffer(device_, zmodel.vertexBuffer.buffer, NULL);
+    vkDestroyBuffer(device_, spriteDataBuffer.buffer, NULL);
+    vkFreeMemory(device_, spriteDataBuffer.memory, NULL);
+    vkFreeMemory(device_, zmodel.vertexBuffer.memory, NULL);
+    spriteDataBuffer.buffer = VK_NULL_HANDLE;
+    zmodel.vertexBuffer.buffer = VK_NULL_HANDLE;
+    spriteDataBuffer.memory = VK_NULL_HANDLE;
+    zmodel.vertexBuffer.memory = VK_NULL_HANDLE;
+
     ZENGINE_PRINT("Freeing swapchain\n"); deleteSwapChain();
     free(swapChainSupport.formats);
     free(swapChainSupport.presentModes);
 
     ZENGINE_PRINT("Freeing descriptor set layout\n"); vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, NULL);
-    ZENGINE_PRINT("Freeing descriptor pool\n"); vkDestroyDescriptorPool(device_, descriptorPool, NULL);
-    ZENGINE_PRINT("Freeing command pool\n"); vkDestroyCommandPool(device_, commandPool, NULL);
-    ZENGINE_PRINT("Destroying device\n"); vkDestroyDevice(device_, NULL);
-    ZENGINE_PRINT("Freeing window surface\n"); vkDestroySurfaceKHR(instance, surface_, NULL);
-    ZENGINE_PRINT("Destroying instance\n"); vkDestroyInstance(instance, NULL);
+    ZENGINE_PRINT("Freeing descriptor pool\n");       vkDestroyDescriptorPool(device_, descriptorPool, NULL);
+    ZENGINE_PRINT("Freeing command pool\n");          vkDestroyCommandPool(device_, commandPool, NULL);
+    vkDestroySwapchainKHR(device_, swapChain, NULL);
+    vkDestroySwapchainKHR(device_, oldSwapChain, NULL);
+    ZENGINE_PRINT("Destroying device\n");             vkDestroyDevice(device_, NULL);
+    ZENGINE_PRINT("Freeing window surface\n");        vkDestroySurfaceKHR(instance, surface_, NULL);
+#ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
+    ZENGINE_PRINT("Destroying debug messenger\n");
+    PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessenger = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    if (vkDestroyDebugUtilsMessenger != NULL) { vkDestroyDebugUtilsMessenger(instance, debugMessenger, NULL); }
+#endif
+    ZENGINE_PRINT("Destroying instance\n");           vkDestroyInstance(instance, NULL);
 }
 
 #undef ZENGINE_IMPLEMENTATION
 #endif // ZENGINE_IMPLEMENTATION
+
+#ifdef __cplusplus
+    }
+#endif
+
 #endif // ZENGINE_H

@@ -1,9 +1,10 @@
 #ifndef ZMARBLE_H
 #define ZMARBLE_H
 
-void initBoard(void);
-void updateBoard(void);
-void deinitBoard(void);
+extern unsigned short gameState;
+
+void initZMarble(void);
+void tickZMarble(void);
+void deinitZMarble(void);
 
 #endif // ZMARBLE_H
-
