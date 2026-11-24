@@ -71,24 +71,24 @@ COMPILER FLAGS:
 
 struct ma_engine;
 
-typedef struct Vertex {
+typedef struct {
     float pos[2];
     float cord[2];
-} Vertex;
+} ZVertex;
 
-typedef struct Buffer {
+typedef struct {
     VkBuffer buffer;
     VkDeviceMemory memory;
     VkDeviceSize bufferSize;
     void* mapped;
-} Buffer;
+} ZBuffer;
 
-typedef struct Model {
-    Buffer vertexBuffer;
-    Vertex vertices[4];
-} Model;
+typedef struct {
+    ZBuffer vertexBuffer;
+    ZVertex vertices[4];
+} ZModel;
 
-typedef struct __attribute__((aligned(16))) Sprite {
+typedef struct __attribute__((aligned(16))) {
     float position[2];
     float scale[2];
     float rotationMatrix[4];
@@ -99,13 +99,13 @@ typedef struct __attribute__((aligned(16))) Sprite {
     float padding;
 } Sprite;
 
-typedef struct Camera {
+typedef struct {
     float position[2];
     float zoom[2];
     float aspect;
-} Camera;
+} ZCamera;
 
-typedef struct SwapChainSupportDetails {
+typedef struct {
     VkSurfaceCapabilitiesKHR capabilities;
     VkSurfaceFormatKHR* formats;
     unsigned int formatsSize;
@@ -113,14 +113,14 @@ typedef struct SwapChainSupportDetails {
     unsigned int presentModeSize;
 } SwapChainSupportDetails;
 
-typedef struct QueueFamilyIndices {
+typedef struct {
     unsigned int graphicsFamily;
     unsigned int presentFamily;
     ZENGINE_BOOL graphicsFamilyHasValue;
     ZENGINE_BOOL presentFamilyHasValue;
 } QueueFamilyIndices;
 
-typedef struct Texture {
+typedef struct {
     VkImage image;
     VkDeviceMemory memory;
     VkImageView view;
@@ -128,16 +128,16 @@ typedef struct Texture {
     VkBuffer buffer;
     VkDeviceMemory bufferMemory;
     ZENGINE_BOOL loaded;
-} Texture;
+} ZTexture;
 
 /* extern vars */
 extern double deltaTime;
-extern struct Texture spriteTextures[ZENGINE_MAX_TEXTURES];
+extern struct ZTexture spriteTextures[ZENGINE_MAX_TEXTURES];
 extern struct Sprite sprites[ZENGINE_MAX_SPRITES];
 extern unsigned int spritesSize;
 extern unsigned int availibleSpriteSize;
-extern struct Model zmodel;
-extern Camera camera;
+extern struct ZModel zmodel;
+extern ZCamera camera;
 extern ZENGINE_BOOL ZEngine_framebufferResized;
 extern RGFW_window* zwindow;
 #ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
@@ -169,11 +169,11 @@ void deleteSwapChain();
 void createTexture(const unsigned char* data, unsigned int index, unsigned int width, unsigned int height, VkFormat format);
 
 /* buffer funcs */
-void createBuffer(Buffer* buffer, VkDeviceSize instanceSize, unsigned int instanceCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags);
+void createBuffer(ZBuffer* buffer, VkDeviceSize instanceSize, unsigned int instanceCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags);
 
 #ifdef ZENGINE_IMPLEMENTATION
 /* PRIVATE VARS/EXTERN DEFINITIONS */
-Camera camera;
+ZCamera camera;
 
 double deltaTime = 0.0; /* deltaTime, do what you will. Example implementation in main.cpp */
 ZENGINE_BOOL ZEngineClose = 0; /* flag to show when the engine is closing */
@@ -182,7 +182,7 @@ ZENGINE_BOOL ZEngineClose = 0; /* flag to show when the engine is closing */
 #endif
 
 /* texture vecs */
-struct Texture spriteTextures[ZENGINE_MAX_TEXTURES] = {0};
+struct ZTexture spriteTextures[ZENGINE_MAX_TEXTURES] = {0};
 VkCommandBuffer textureCommandBuffer;
 VkCommandBufferAllocateInfo textureAllocInfo = {(VkStructureType)0};
 VkMemoryAllocateInfo textureMoreAllocInfo = {(VkStructureType)0};
@@ -230,11 +230,11 @@ VkPipeline graphicsPipeline;
 VkPipelineLayout pipelineLayout;
 VkDescriptorSetLayout descriptorSetLayout;
 VkDescriptorPool descriptorPool;
-struct Model zmodel;
+struct ZModel zmodel;
 
 /* rendersystem vars */
 VkDescriptorSet spriteDataDescriptorSet;
-struct Buffer spriteDataBuffer;
+struct ZBuffer spriteDataBuffer;
 
 /* swapchain vars */
 VkSwapchainKHR swapChain;
@@ -554,7 +554,7 @@ void createTexture(const unsigned char* data, unsigned int index, unsigned int w
 }
 
 /* ZENIGNE HELPER FUNCTIONS */
-void createBuffer(Buffer* buffer, VkDeviceSize instanceSize, unsigned int instanceCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags) {
+void createBuffer(ZBuffer* buffer, VkDeviceSize instanceSize, unsigned int instanceCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags) {
     buffer->bufferSize = instanceSize * instanceCount;
     buffer->mapped = NULL;
 
@@ -910,7 +910,7 @@ void ZEngineInit() {
     ZENGINE_PRINT("Rasterizing pipeline data...\n");
     VkVertexInputBindingDescription bindingDescription = {0};
     bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(Vertex);
+    bindingDescription.stride = sizeof(ZVertex);
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     VkVertexInputAttributeDescription inputAttributes[2];
@@ -1135,9 +1135,9 @@ void ZEngineInit() {
     zmodel.vertices[3].pos[0] = .5f;  zmodel.vertices[3].pos[1] = .5f;
     zmodel.vertices[3].cord[0] = 1.f; zmodel.vertices[3].cord[1] = 1.f;
 
-    createBuffer(&zmodel.vertexBuffer, sizeof(Vertex) * 4, 1, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    createBuffer(&zmodel.vertexBuffer, sizeof(ZVertex) * 4, 1, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     vkMapMemory(device_, zmodel.vertexBuffer.memory, 0, zmodel.vertexBuffer.bufferSize, 0, &zmodel.vertexBuffer.mapped);
-    memcpy(zmodel.vertexBuffer.mapped, (const void*)zmodel.vertices, (unsigned int)(sizeof(Vertex) * 4));
+    memcpy(zmodel.vertexBuffer.mapped, (const void*)zmodel.vertices, (unsigned int)(sizeof(ZVertex) * 4));
     vkUnmapMemory(device_, zmodel.vertexBuffer.memory);
 
     if (uniformBuffer) { createBuffer(&spriteDataBuffer, sizeof(Sprite) * ZENGINE_MAX_SPRITES, 1, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT); }
@@ -1213,7 +1213,7 @@ void ZEngineRender() {
     /* render sprites */
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &spriteDataDescriptorSet, 0, NULL);
-    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(Camera), &camera);
+    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(ZCamera), &camera);
 
 #ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
     if (ZEngineSpriteRemap) {
