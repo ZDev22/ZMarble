@@ -23,40 +23,29 @@ To use along-side zengine.h, use #define ZENGINE_DEPS_DEFINED */
 #define RGFW_EXPORT
 #define RGFW_ASSERT(x) (void)(x)
 
-/* STB_IMAGE */
-#define STB_IMAGE_IMPLEMENTATION
-#define STBI_ASSERT(x)
-/* disable a bunch of random image types (supported image types are png and jpg) */
-#define STBI_NO_GIF
-#define STBI_NO_HDR
-#define STBI_NO_BMP
-#define STBI_NO_PSD
-#define STBI_NO_TGA
-#define STBI_NO_PIC
-#define STBI_NO_PNM
-#define STBI_NO_LINEAR
+/* AUDIO */
+#define SOKOL_IMPL
 
 /* STB_TRUETYPE */
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBTT_ASSERT(x)
 
-/* DEPENDENCIES */
-#include "deps/RGFW.h"
-#include "deps/stb_image.h"
-#include "deps/stb_truetype.h"
+/* ZDEPS */
+#define ZUTILS_IMPLEMENTATION
+#define ZAUDIO_IMPLEMENTATION
+#define ZCOLLIDE_IMPLEMENTATION
 
+/* VULKAN */
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
+/* DEPENDENCIES */
+#include "deps/RGFW.h"
+#include "deps/sokol_audio.h"
+
 #undef RGFW_IMPLEMENTATION
-#undef ZCOLLIDE_IMPLEMENTATION
-#undef ZTEXT_IMPLEMENTATION
-#undef STB_IMAGE_IMPLEMENTATION
-#undef STB_TRUETYPE_IMPLEMENTATION
+#undef SOKOL_AUDIO_IMPL
 
-/* zdeps */
-#define ZCOLLIDE_IMPLEMENTATION
-#define ZTEXT_IMPLEMENTATION
-
+#include "zutils.h"
+#include "zaudio.h"
 #include "zcollide.h"
-#include "ztext.h"

@@ -11,6 +11,9 @@ An example implementation on how to init and use zengine, as well as a few zdeps
 #define ZENGINE_DISABLE_VSYNC
 #include "zengine.h"
 
+/* zutils is not required, if you don't want to use it remove ZUtilsInit and ZUtilsTick. If you do not include it, you will have to handle window resizing yourself */
+#include "zutils.h"
+
 //#define FPS_CAP 60.f
 
 #ifdef TRACK_FPS
@@ -30,13 +33,17 @@ struct timespec fpsLastTime;
 
 int main() {
     /* init engine */
-#ifndef _WIN32
+#ifdef __linux__
     setenv("__GL_YIELD", "USLEEP", 1);
     setenv("MESA_NO_ERROR", "1", 1);
 #endif
 
     RGFW_init("z", RGFW_initVulkan);
     zwindow = RGFW_createWindow("...", 0, 0, 720, 480, 0);
+#ifdef _WIN32
+    RGFW_window_maximize(zwindow);
+#endif
+    ZUtilsInit();
     ZEngineInit();
     initZMarble();
 
@@ -66,24 +73,15 @@ int main() {
         }
         fps++;
 #endif
-        /* poll window events */
-        RGFW_event event;
-        while (RGFW_window_checkEvent(zwindow, &event)) {
-            if (event.type == RGFW_windowResized) {
-                framebufferResized = 1;
-                break;
-            }
-        }
-
+        ZUtilsTick();
         tickZMarble();
-
         ZEngineRender();
     }
 
     RGFW_window_close(zwindow);
     zwindow = NULL;
     ZEngineDeinit();
+    ZUtilsDeinit();
     RGFW_deinit();
     deinitZMarble();
 }
-

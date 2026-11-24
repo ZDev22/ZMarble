@@ -4,6 +4,7 @@
 #define ZENGINE_IMPLEMENTATION - define functions INCLUDE IN MAIN.C ONLY
 #define ZENGINE_DISABLE_VSYNC - extend beyond mortal limitations and exceed maximum fps
 #define ZENGINE_SPRITE_MAPMODE_MANUAL - manually change the ZEngineSpriteRemap flag whenever you update sprite data
+#define ZENGINE_FAST_DEPTH - reorders depth to be faster on the GPU, however newly created sprites are layered behind older ones. Use depending on how you create your sprites and if you have a lot of overlap.
 
 COMPILER FLAGS:
 -DZENGINE_DEBUG - adds debug printing for debugging.
@@ -18,9 +19,11 @@ COMPILER FLAGS:
 
 #ifdef __cplusplus
     extern "C" {
+    #define ZENGINE_BOOL bool
 #else
-    #include <stdbool.h>
+    #define ZENGINE_BOOL _Bool
 #endif
+#include <math.h>
 
 #ifdef ZENGINE_IMPLEMENTATION
 /* define a few necissary macros if not already defined */
@@ -29,11 +32,6 @@ COMPILER FLAGS:
 #endif
 #ifndef ZENGINE_MAX_TEXTURES
     #define ZENGINE_MAX_TEXTURES 50
-#endif
-
-#if ZENGINE_MAX_SPRITES > 4096 && defined(__APPLE__)
-    #undef ZENGINE_MAX_SPRITES
-    #define ZENGINE_MAX_SPRITES 4096
 #endif
 
 #if ZENGINE_MAX_TEXTURES < 25
@@ -53,7 +51,7 @@ COMPILER FLAGS:
 #ifdef ZENGINE_DEBUG
     #include <stdio.h>
     #undef ZENGINE_THROW
-    #define ZENGINE_THROW(x) if((x) != VK_SUCCESS) exit(1);
+    #define ZENGINE_THROW(x) if((x) != VK_SUCCESS) { ZENGINE_PRINT("CRASH ON LINE %d\n", __LINE__); exit(1); }
 
     #undef ZENGINE_PRINT
     #define ZENGINE_PRINT(x, ...) printf(x, ##__VA_ARGS__)
@@ -66,17 +64,10 @@ COMPILER FLAGS:
 #define RGFW_EXPORT
 
 #include "deps/RGFW.h" /* window */
-#include "deps/stb_image.h" /* image */
 
 /* vulkan */
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
-
-/* std libs (the less the better) */
-#include <math.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 struct ma_engine;
 
@@ -125,8 +116,8 @@ typedef struct SwapChainSupportDetails {
 typedef struct QueueFamilyIndices {
     unsigned int graphicsFamily;
     unsigned int presentFamily;
-    bool graphicsFamilyHasValue;
-    bool presentFamilyHasValue;
+    ZENGINE_BOOL graphicsFamilyHasValue;
+    ZENGINE_BOOL presentFamilyHasValue;
 } QueueFamilyIndices;
 
 typedef struct Texture {
@@ -136,7 +127,7 @@ typedef struct Texture {
     VkSampler sampler;
     VkBuffer buffer;
     VkDeviceMemory bufferMemory;
-    bool loaded;
+    ZENGINE_BOOL loaded;
 } Texture;
 
 /* extern vars */
@@ -147,10 +138,10 @@ extern unsigned int spritesSize;
 extern unsigned int availibleSpriteSize;
 extern struct Model zmodel;
 extern Camera camera;
-extern bool framebufferResized;
+extern ZENGINE_BOOL ZEngine_framebufferResized;
 extern RGFW_window* zwindow;
 #ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
-    extern bool ZEngineSpriteRemap;
+    extern ZENGINE_BOOL ZEngineSpriteRemap;
 #endif
 
 /* ZENGINE FORWARD-DECLARED FUNCTIONS */
@@ -175,8 +166,7 @@ void createSwapChain();
 void deleteSwapChain();
 
 /* texture funcs*/
-void createTexture(const char* filepath, float opacity, unsigned int index);
-void createTextureExt(const unsigned char* data, unsigned int index, unsigned int width, unsigned int height, VkDeviceSize imageSize, VkFormat format);
+void createTexture(const unsigned char* data, unsigned int index, unsigned int width, unsigned int height, VkFormat format);
 
 /* buffer funcs */
 void createBuffer(Buffer* buffer, VkDeviceSize instanceSize, unsigned int instanceCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags);
@@ -186,9 +176,9 @@ void createBuffer(Buffer* buffer, VkDeviceSize instanceSize, unsigned int instan
 Camera camera;
 
 double deltaTime = 0.0; /* deltaTime, do what you will. Example implementation in main.cpp */
-bool ZEngineClose = 0; /* flag to show when the engine is closing */
+ZENGINE_BOOL ZEngineClose = 0; /* flag to show when the engine is closing */
 #ifdef ZENGINE_SPRITE_MAPMODE_MANUAL
-    bool ZEngineSpriteRemap = 1; /* flag to update sprite data buffer with ZENGINE_SPRITE_MAPMODE_MANUAL */
+    ZENGINE_BOOL ZEngineSpriteRemap = 1; /* flag to update sprite data buffer with ZENGINE_SPRITE_MAPMODE_MANUAL */
 #endif
 
 /* texture vecs */
@@ -206,7 +196,7 @@ VkDescriptorImageInfo textureMoreImageInfo = {(VkSampler)0};
 VkWriteDescriptorSet textureImageWrite = {(VkStructureType)0};
 
 /* window vars */
-bool framebufferResized = 0;
+ZENGINE_BOOL ZEngine_framebufferResized = 0;
 RGFW_window* zwindow = NULL;
 VkExtent2D windowExtent;
 
@@ -226,7 +216,7 @@ VkDevice device_;
 VkQueue presentQueue_;
 VkSurfaceKHR surface_;
 VkQueue graphicsQueue_;
-bool uniformBuffer = 0;
+ZENGINE_BOOL uniformBuffer = 0;
 #ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
 VkDebugUtilsMessengerEXT debugMessenger;
 #endif
@@ -502,30 +492,18 @@ void deleteTexture(unsigned int index) {
     }
 }
 
-void createTexture(const char* filepath, float opacity, unsigned int index) {
-    int width = 0; int height = 0;
-    unsigned char* pixels = stbi_load(filepath, &width, &height, NULL, STBI_rgb_alpha);
-    VkDeviceSize imageSize = width * height * 4;
-
-    if (opacity != 1.f) {
-        for (unsigned int i = 3; i < (unsigned int)imageSize; i += 4) { pixels[i] *= opacity; }
-    }
-
-    createTextureExt(pixels, index, width, height, imageSize, VK_FORMAT_R8G8B8A8_SRGB);
-    stbi_image_free(pixels);
-}
-
-void createTextureExt(const unsigned char* data, unsigned int index, unsigned int width, unsigned int height, VkDeviceSize imageSize, VkFormat format) {
+void createTexture(const unsigned char* data, unsigned int index, unsigned int width, unsigned int height, VkFormat format) {
 #ifdef ZENGINE_DEBUG
     if (index > ZENGINE_MAX_TEXTURES - 1) {
         ZENGINE_PRINT("The texture you are trying to load exceeds the texture limit! Please make sure -DZENGINE_MAX_TEXTURES is higher than the loaded index!");
-        exit(1);
+        return;
     }
 #endif
 
     deleteTexture(index);
     spriteTextures[index].loaded = 1;
 
+    VkDeviceSize imageSize = width * height * 4;
     textureBufferInfo.size = imageSize;
     vkCreateBuffer(device_, &textureBufferInfo, NULL, &spriteTextures[index].buffer);
 
@@ -692,7 +670,11 @@ Sprite* createSprite(float positionx, float positiony, float scalex, float scale
         sprites[spritesSize].scale[0] = scalex;
         sprites[spritesSize].scale[1] = scaley;
         sprites[spritesSize].textureIndex = textureIndex;
-        sprites[spritesSize].depth = .999f - ((float)spritesSize * 0.00001f);
+#ifdef ZENGINE_FAST_DEPTH
+        sprites[spritesSize].depth = 0.00001f + ((float)spritesSize * 0.00001f);
+#else
+    sprites[spritesSize].depth = .99999f - ((float)spritesSize * 0.00001f);
+#endif
         rotateSprite(&sprites[spritesSize], rotation);
         spritesSize++;
 
@@ -761,45 +743,12 @@ void ZEngineInit() {
     instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instanceInfo.pApplicationInfo = &appInfo;
 
-#ifdef __APPLE__
-    const char* instanceExtensions[] = {
-        VK_KHR_SURFACE_EXTENSION_NAME,
-        "VK_MVK_macos_surface"
 #ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
-        , VK_EXT_DEBUG_UTILS_EXTENSION_NAME /* extra extension for vulkan validation output */
-#endif
-    };
-
-    instanceInfo.enabledExtensionCount = sizeof(instanceExtensions) / sizeof(instanceExtensions[0]);
+    /* add VK_EXT_DEBUG_UTILS_EXTENSION_NAME for vulkan validation output */
+    const char* instanceExtensions[3] = {VK_KHR_SURFACE_EXTENSION_NAME, RGFW_VK_SURFACE, VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
+    instanceInfo.enabledExtensionCount = 3;
     instanceInfo.ppEnabledExtensionNames = instanceExtensions;
-    instanceInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-#else
-    size_t rgfWExtensionCount = 0;
-    const char** rgfWExtensions = RGFW_getRequiredInstanceExtensions_Vulkan(&rgfWExtensionCount);
-    if (!rgfWExtensions || rgfWExtensionCount == 0) {
-        ZENGINE_PRINT("Failed to get Vulkan extensions\n");
-        exit(1);
-    }
 
-    ZENGINE_PRINT("Enabling extensions:\n");
-    for (size_t i = 0; i < rgfWExtensionCount; i++) { ZENGINE_PRINT("     - %s\n", rgfWExtensions[i]); }
-
-#ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
-    /* add an extra extension for vulkan validation output */
-    size_t instanceExtensionCount = rgfWExtensionCount + 1;
-    const char* instanceExtensions[instanceExtensionCount];
-    for (size_t i = 0; i < rgfWExtensionCount; i++) { instanceExtensions[i] = rgfWExtensions[i]; }
-    instanceExtensions[rgfWExtensionCount] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
-
-    instanceInfo.enabledExtensionCount = instanceExtensionCount;
-    instanceInfo.ppEnabledExtensionNames = instanceExtensions;
-#else
-    instanceInfo.enabledExtensionCount = rgfWExtensionCount;
-    instanceInfo.ppEnabledExtensionNames = rgfWExtensions;
-#endif
-#endif
-
-#ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
     /* enable the vulkan validation layers */
     instanceInfo.enabledLayerCount = sizeof(validationLayers) / sizeof(validationLayers[0]);
     instanceInfo.ppEnabledLayerNames = validationLayers;
@@ -811,18 +760,10 @@ void ZEngineInit() {
     debugInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     debugInfo.pfnUserCallback = debugCallback;
     instanceInfo.pNext = &debugInfo;
-#endif
 
-#ifdef ZENGINE_DEBUG
-    VkResult result = vkCreateInstance(&instanceInfo, NULL, &instance);
-    if  (result != 0) {
-        ZENGINE_PRINT("Instance creation failed - error code: %d\n", result);
-    }
-#else
-    vkCreateInstance(&instanceInfo, NULL, &instance);
-#endif
+    /* create instance */
+    ZENGINE_THROW(vkCreateInstance(&instanceInfo, NULL, &instance));
 
-#ifdef ZENGINE_ENABLE_VALIDATION_LAYERS
     /* create a debug messenger to validate the engine during its entire lifetime */
     PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
     if (vkCreateDebugUtilsMessenger == NULL) {
@@ -831,6 +772,12 @@ void ZEngineInit() {
     }
 
     ZENGINE_THROW(vkCreateDebugUtilsMessenger(instance, &debugInfo, NULL, &debugMessenger));
+#else
+    const char* instanceExtensions[2] = {VK_KHR_SURFACE_EXTENSION_NAME, RGFW_VK_SURFACE};
+    instanceInfo.enabledExtensionCount = 2;
+    instanceInfo.ppEnabledExtensionNames = instanceExtensions;
+
+    ZENGINE_THROW(vkCreateInstance(&instanceInfo, NULL, &instance));
 #endif
 
     ZENGINE_PRINT("Creating surface...\n"); RGFW_window_createSurface_Vulkan(zwindow, instance, &surface_); //---------------------------------------------------------------------------------------------------------------
@@ -845,41 +792,31 @@ void ZEngineInit() {
         ZENGINE_PRINT("No Vulkan-compatible GPUs found!\nPlease install vulkan drivers: Intel: sudo pacman -S vulkan-intel || AMD: sudo pacman -S vulkan-radeon || If you are not on arch linux, please follow the guide in https://github.com/ZDev22/ZEngine/blob/main/README.md\n");
         exit(1);
     }
-    else if (deviceCount == 1) { physicalDevice = devices[0]; }
+    else if (deviceCount == 1) {
+        physicalDevice = devices[0];
+        vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface_, &swapChainSupport.formatsSize, NULL);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface_, &swapChainSupport.presentModeSize, NULL);
+    }
     else {
         ZENGINE_PRINT("Found %u GPUs\n", deviceCount);
         short highScore = -1;
         for (unsigned char i = 0; i < (unsigned char)deviceCount; ++i) {
-            /* check if device is suitable, and score it */
-            QueueFamilyIndices indices = findQueueFamilies(devices[i]);
-            unsigned int extensionCount = 0;
+            SwapChainSupportDetails swapChainCheck;
+            vkGetPhysicalDeviceSurfaceFormatsKHR(devices[i], surface_, &swapChainCheck.formatsSize, NULL);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(devices[i], surface_, &swapChainCheck.presentModeSize, NULL);
 
-            /* check if extensions are supported on the GPU: */
-            vkEnumerateDeviceExtensionProperties(devices[i], NULL, &extensionCount, NULL);
-            VkExtensionProperties availableExtensions[extensionCount];
-            vkEnumerateDeviceExtensionProperties(devices[i], NULL, &extensionCount, availableExtensions);
-
-            SwapChainSupportDetails swapChainSupport;
-            vkGetPhysicalDeviceSurfaceCapabilitiesKHR(devices[i], surface_, &swapChainSupport.capabilities);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(devices[i], surface_, &swapChainSupport.formatsSize, NULL);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(devices[i], surface_, &swapChainSupport.presentModeSize, NULL);
-
-            unsigned short newScore = swapChainSupport.formatsSize * swapChainSupport.presentModeSize;
-            VkPhysicalDeviceFeatures supportedFeatures;
-            vkGetPhysicalDeviceFeatures(devices[i], &supportedFeatures);
-            if (!(indices.graphicsFamilyHasValue && indices.presentFamilyHasValue && !(swapChainSupport.formatsSize == 0) && !(swapChainSupport.presentModeSize == 0))) { newScore = 0; }
-            else if (newScore > highScore) {
+            unsigned short newScore = swapChainCheck.formatsSize * swapChainCheck.presentModeSize;
+            if (newScore > highScore) {
                 highScore = newScore;
                 physicalDevice = devices[i];
+                swapChainSupport.formatsSize = swapChainCheck.formatsSize;
+                swapChainSupport.presentModeSize = swapChainCheck.presentModeSize;
                 break;
             }
         }
     }
 
     vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface_, &swapChainSupport.capabilities);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface_, &swapChainSupport.formatsSize, NULL);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface_, &swapChainSupport.presentModeSize, NULL);
     if (swapChainSupport.formatsSize != 0) {
         swapChainSupport.formats = (VkSurfaceFormatKHR*)malloc(swapChainSupport.formatsSize * sizeof(VkSurfaceFormatKHR));
         vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface_, &swapChainSupport.formatsSize, swapChainSupport.formats);
@@ -889,17 +826,11 @@ void ZEngineInit() {
         vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface_, &swapChainSupport.presentModeSize, swapChainSupport.presentModes);
     }
 
-    if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {
-	    uniformBuffer = 1;
-    }
+    if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) { uniformBuffer = 1; }
 
 #ifdef ZENGINE_DEBUG
     ZENGINE_PRINT("Selected GPU: %s\n", properties.deviceName);
-    ZENGINE_PRINT("  - Swapchain formats: %u, presentmodes: %u\n", swapChainSupport.formatsSize, swapChainSupport.presentModeSize);
-    for (unsigned char i = 0; i < (unsigned char)swapChainSupport.presentModeSize; i++) {
-        if (swapChainSupport.presentModes[i] == 0) { ZENGINE_PRINT("  - GPU supports VSync\n"); }
-        else if (swapChainSupport.presentModes[i] == 2) { ZENGINE_PRINT("  - GPU can disable VSync\n"); }
-    }
+    ZENGINE_PRINT("  - Swapchain formats: %u | Present modes: %u\n", swapChainSupport.formatsSize, swapChainSupport.presentModeSize);
 #endif
 
     ZENGINE_PRINT("Creating logical device...\n"); //---------------------------------------------------------------------------------------------------------------
@@ -923,7 +854,7 @@ void ZEngineInit() {
         queueCreateInfos[i] = queueCreateInfo;
     }
 
-    VkPhysicalDeviceVulkan12Features deviceVulkanUpdate = {0};
+    VkPhysicalDeviceVulkan12Features deviceVulkanUpdate = {(VkStructureType)0};
     deviceVulkanUpdate.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     deviceVulkanUpdate.runtimeDescriptorArray = VK_TRUE;
     deviceVulkanUpdate.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
@@ -934,16 +865,8 @@ void ZEngineInit() {
     deviceInfo.pQueueCreateInfos = queueCreateInfos;
     deviceInfo.queueCreateInfoCount = queueFamilySize;
 
-#ifdef __APPLE__
-    const char* extension[2] = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        "VK_KHR_portability_subset"
-    };
-    deviceInfo.enabledExtensionCount = 2;
-#else
     const char* extension[1] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     deviceInfo.enabledExtensionCount = 1;
-#endif
     deviceInfo.ppEnabledExtensionNames = extension;
     deviceInfo.enabledLayerCount = 0;
     ZENGINE_THROW(vkCreateDevice(physicalDevice, &deviceInfo, NULL, &device_));
@@ -974,7 +897,7 @@ void ZEngineInit() {
     vkAllocateCommandBuffers(device_, &commandBufferInfo, commandBuffers);
 
     ZENGINE_PRINT("Initializing shaders...\n");
-    VkPipelineShaderStageCreateInfo shaderStages[2] = {(VkStructureType)0};
+    VkPipelineShaderStageCreateInfo shaderStages[2] = {{(VkStructureType)0}};
     shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
     shaderStages[0].module = createShaderModule("shaders/z.vert.spv");
@@ -1062,7 +985,7 @@ void ZEngineInit() {
     dynamicState.pDynamicStates = dynamicStates;
 
     ZENGINE_PRINT("Creating pipeline layout...\n");
-    VkDescriptorSetLayoutBinding layoutBindings[2] = {(VkStructureType)0};
+    VkDescriptorSetLayoutBinding layoutBindings[2] = {{(VkStructureType)0}};
     layoutBindings[0].binding = 0;
     if (uniformBuffer) { layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; }
     else { layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; }
@@ -1246,14 +1169,14 @@ void ZEngineRender() {
     vkWaitForFences(device_, 1, &inFlightFences[currentFrame], VK_TRUE, 0xFFFFFFFFFFFFFFFF);
     /* resize window */
     VkResult result = vkAcquireNextImageKHR(device_, swapChain, 0xFFFFFFFFFFFFFFFF, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &currentImageIndex);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || ZEngine_framebufferResized) {
         /* recreate swapchain */
         vkDeviceWaitIdle(device_);
         oldSwapChain = swapChain;
         deleteSwapChain();
         createSwapChain();
 
-        framebufferResized = 0;
+        ZEngine_framebufferResized = 0;
         camera.aspect = (float)windowExtent.width / (float)windowExtent.height;
         return;
     }

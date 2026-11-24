@@ -1,7 +1,7 @@
 #include "UI.h"
 #include "zmarble.h"
 #include "MoR/MoR.h"
-#include "../zengine.h"
+#include "../zutils.h"
 
 static unsigned char UIScreen = 0;
 static float UIAnimTimer = 0.f;
@@ -38,8 +38,8 @@ static Sprite* multiplyMultiplierActivated = NULL;
 static Sprite* multiplyScaleSize = NULL;
 
 void initMainMenuUI(void) {
-    createTexture("assets/img/ZMARBLE.png", 1.f, 0);
-    createTexture("assets/img/ZMARBLE.png", 1.f, 1);
+    createPNGTexture("assets/img/ZMARBLE.png", 0);
+    createPNGTexture("assets/img/ZMARBLE.png", 1);
 
     MoRUI = createSprite(0.f, -.6f, 3.2f, .8f, 0.f, 0);
     MoRSprite = createSprite(0.f, .5f, .2f, .2f, 0.f, 1);

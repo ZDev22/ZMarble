@@ -48,9 +48,8 @@
 #define BOARD_SCALE .5f
 #define GRAVITY 2.5f
 
-#include "../../zengine.h"
+#include "../../zutils.h"
 #include "../../zcollide.h"
-#include "../../ztext.h"
 #include "MoR.h"
 
 #include <stdlib.h>
@@ -102,7 +101,7 @@ void createMarbleColor(unsigned char R, unsigned char G, unsigned char B, unsign
     marbleColor[15] = 0;
     marbleColor[63] = 0;
     marbleColor[51] = 0;
-    createTextureExt(marbleColor, index, 4, 4, 64, VK_FORMAT_R8G8B8A8_SRGB);
+    createTexture(marbleColor, index, 4, 4, VK_FORMAT_R8G8B8A8_SRGB);
 }
 
 void setColor(unsigned char* color, unsigned short startingIndex, unsigned char colorID) {
@@ -282,6 +281,11 @@ static void createMarble(float positionx, float positiony, float scalex, float s
     marbleSize++;
 }
 
+static void updateScore(const char* score, unsigned char index) {
+    createText(score, index + 13, 0);
+    points[index].sprite->scale[0] = (float)strlen(score) / 25.f;
+}
+
 void initMoR(void) {
     boardImage = (unsigned char*)malloc(SQUARES * SQUARES * 4);
     colors = (unsigned char*)malloc(12);
@@ -421,12 +425,12 @@ void initMoR(void) {
         setSquare(i);
     }
 
-    createTextureExt(boardImage, 12, SQUARES, SQUARES, SQUARES * SQUARES * 4, VK_FORMAT_R8G8B8A8_SRGB);
+    createTexture(boardImage, 12, SQUARES, SQUARES, VK_FORMAT_R8G8B8A8_SRGB);
 
     /* load marbles */
-    createTexture("assets/img/gray.png", 1.f, 9);
-    createTexture("assets/img/multiply.png", 1.f, 10);
-    createTexture("assets/img/release.png", 1.f, 11);
+    createPNGTexture("assets/img/gray.png", 9);
+    createPNGTexture("assets/img/multiply.png", 10);
+    createPNGTexture("assets/img/release.png", 11);
 
     for (unsigned int i = 0; i < 12; i++) { /* spawn normal marbles */
         createMarble((float)((rand() % 400) + 800) / 1000.f, (float)((rand() % 900) - 2000) / 1000.f, .025f, .025f, 0.f, i % 4, (float)((rand() % 1000) - 500) / 1000.f, (float)((rand() % 2000) - 1000) / 1000.f, 0);
@@ -455,16 +459,17 @@ void initMoR(void) {
         projectileTimer[i] = 0.f;
     }
 
-    loadFont("assets/fonts/CubicCoreMono.ttf", 0);
-    createText("1", 128, 32, 16, 0, 13);
-    createText("1", 128, 32, 16, 0, 14);
-    createText("1", 128, 32, 16, 0, 15);
-    createText("1", 128, 32, 16, 0, 16);
+    loadFont("assets/fonts/Minecraft.png", 7, 0);
 
-    points[0].sprite = createSprite(-BOARD_SCALE + .05f, -BOARD_SCALE - .05f, .4f, .1f, 0.f, 13);
-    points[1].sprite = createSprite(BOARD_SCALE + .05f, -BOARD_SCALE - .05f, .4f, .1f, 0.f, 14);
-    points[2].sprite = createSprite(-BOARD_SCALE + .05f, BOARD_SCALE + .1f, .4f, .1f, 0.f, 15);
-    points[3].sprite = createSprite(BOARD_SCALE + .05f, BOARD_SCALE + .1f, .4f, .1f, 0.f, 16);
+    points[0].sprite = createSprite(-BOARD_SCALE + .05f, -BOARD_SCALE - .05f, 0.f, .05f, 0.f, 13);
+    points[1].sprite = createSprite(BOARD_SCALE + .05f, -BOARD_SCALE - .05f, 0.f, .05f, 0.f, 14);
+    points[2].sprite = createSprite(-BOARD_SCALE, BOARD_SCALE + .07f, 0.f, .05f, 0.f, 15);
+    points[3].sprite = createSprite(BOARD_SCALE, BOARD_SCALE + .07f, 0.f, .05f, 0.f, 16);
+
+    updateScore("1", 0);
+    updateScore("1", 1);
+    updateScore("1", 2);
+    updateScore("1", 3);
 
     boardSprite = createSprite(0.f, 0.f, BOARD_SCALE * 2.f, BOARD_SCALE * 2.f, 0.f, 12);
     releaseSprite = createSprite(1.f, 1.f, .42f, .1f, 0.f, 11);
@@ -567,7 +572,7 @@ void tickMoR(void) {
             else {
                 sprintf(pointstr, "%d", (unsigned int)points[i].points);
             }
-            createText(pointstr, 128, 32, 16, 0, i + 13);
+            updateScore(pointstr, i);
             points[i].update = 0;
         }
     }
@@ -646,7 +651,7 @@ void tickMoR(void) {
 
     boardUpdateTimer += deltaTime;
     if (redrawBoard && boardUpdateTimer > .032f) {
-        createTextureExt(boardImage, 12, SQUARES, SQUARES, SQUARES * SQUARES * 4, VK_FORMAT_R8G8B8A8_SRGB);
+        createTexture(boardImage, 12, SQUARES, SQUARES, VK_FORMAT_R8G8B8A8_SRGB);
     }
 
     /* update multiply scale */
